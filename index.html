@@ -95,7 +95,6 @@
       box-shadow: 0 2px 6px rgba(0,0,0,0.06);
     }
 
-    /* Banner de anuncio dinámico */
     .announcement-banner {
       background: #fff9db;
       border: 1.5px dashed #f59e0b;
@@ -313,7 +312,6 @@
   </header>
 
   <div class="container">
-    <!-- Banner de aviso opcional -->
     <div id="ui-announcement" class="announcement-banner"></div>
 
     <div class="section-title">
@@ -362,14 +360,25 @@
       appId: "1:1068537166011:web:e3639a5d29a614b65c519e"
     };
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+    let db = null;
+    try {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.database();
+    } catch(e) {
+      console.warn("Firebase init error:", e);
+    }
 
-    let catalog = [];
+    // Catálogo inicial de arranque (se reemplaza en cuanto responde Firebase)
+    let catalog = [
+      { id: 'p1', name: 'Chocolate Pastelero', type: 'unit', price: 7.00, currentStock: 15 },
+      { id: 'p2', name: 'Dona Maracuyá', type: 'unit', price: 4.00, currentStock: 10 },
+      { id: 'p3', name: 'Dona Manjar Blanco', type: 'unit', price: 3.50, currentStock: 15 },
+      { id: 'p4', name: 'Chocolatada Caliente', type: 'liquid', price: 2.50, currentStock: 10 }
+    ];
+
     let basket = {};
     const WHATSAPP_NUM = "51980988660";
 
-    // Textos por defecto
     let menuConfig = {
       subtitle: "Donas Artesanales & Bebidas",
       statusText: "Atendiendo en el Carrito",
@@ -378,54 +387,51 @@
       footerText: "¡Hechas a mano con amor todos los días! 🍩"
     };
 
-    // Escuchar configuración de textos en vivo desde Firebase
-    db.ref('settings/menuConfig').on('value', snap => {
-      if (snap.val()) {
-        menuConfig = { ...menuConfig, ...snap.val() };
-        applyMenuTexts();
-      }
-    });
-
     function applyMenuTexts() {
-      document.getElementById('ui-subtitle').innerText = menuConfig.subtitle || "Donas Artesanales & Bebidas";
-      document.getElementById('ui-status-text').innerText = menuConfig.statusText || "Atendiendo en el Carrito";
-      document.getElementById('ui-section-title').innerText = menuConfig.sectionTitle || "Sabores Disponibles Hoy:";
-      document.getElementById('ui-footer-text').innerText = menuConfig.footerText || "¡Hechas a mano con amor todos los días! 🍩";
+      const sub = document.getElementById('ui-subtitle');
+      const st = document.getElementById('ui-status-text');
+      const sec = document.getElementById('ui-section-title');
+      const foo = document.getElementById('ui-footer-text');
+      const ann = document.getElementById('ui-announcement');
 
-      const annEl = document.getElementById('ui-announcement');
-      if (menuConfig.announcement && menuConfig.announcement.trim() !== "") {
-        annEl.innerText = menuConfig.announcement;
-        annEl.style.display = "block";
-      } else {
-        annEl.style.display = "none";
+      if (sub) sub.innerText = menuConfig.subtitle || "Donas Artesanales & Bebidas";
+      if (st) st.innerText = menuConfig.statusText || "Atendiendo en el Carrito";
+      if (sec) sec.innerText = menuConfig.sectionTitle || "Sabores Disponibles Hoy:";
+      if (foo) foo.innerText = menuConfig.footerText || "¡Hechas a mano con amor todos los días! 🍩";
+
+      if (ann) {
+        if (menuConfig.announcement && menuConfig.announcement.trim() !== "") {
+          ann.innerText = menuConfig.announcement;
+          ann.style.display = "block";
+        } else {
+          ann.style.display = "none";
+        }
       }
     }
 
-    // Escuchar catálogo en tiempo real
-    db.ref('catalog').on('value', snapshot => {
-      catalog = snapshot.val() || [];
-      renderMenu();
-    });
-
     function renderMenu() {
       const grid = document.getElementById('menu-grid');
-      if (catalog.length === 0) {
+      if (!grid) return;
+      if (!catalog || catalog.length === 0) {
         grid.innerHTML = '<p style="color:var(--muted); font-size:13px; grid-column: 1 / -1;">Aún no se ha registrado producción para hoy. ¡Vuelve pronto!</p>';
         return;
       }
       grid.innerHTML = catalog.map(p => {
-        const isOut = p.currentStock <= 0;
+        const isOut = (p.currentStock || 0) <= 0;
         let badgeClass = 'ok';
         if (p.currentStock <= 3) badgeClass = 'low';
         if (isOut) badgeClass = 'zero';
 
+        const icon = p.type === 'liquid' ? '☕' : '🍩';
+        const priceNum = typeof p.price === 'number' ? p.price : parseFloat(p.price) || 0;
+
         return `
           <div class="card ${isOut ? 'out' : ''}" onclick="addToBasket('${p.id}')">
             <div>
-              <div class="title">${p.type === 'liquid' ? '☕' : '🍩'} ${p.name}</div>
+              <div class="title">${icon} ${p.name}</div>
             </div>
             <div class="meta">
-              <span class="price">S/ ${p.price.toFixed(2)}</span>
+              <span class="price">S/ ${priceNum.toFixed(2)}</span>
               <span class="badge ${badgeClass}">${isOut ? 'Agotado' : p.currentStock + ' disp.'}</span>
             </div>
           </div>
@@ -457,25 +463,30 @@
 
     function renderBasket() {
       const container = document.getElementById('basket-items');
+      const totalEl = document.getElementById('basket-total');
+      if (!container) return;
+
       const keys = Object.keys(basket);
       let total = 0;
 
       if (keys.length === 0) {
         container.innerHTML = '<p style="color: var(--muted); font-size: 13px;">Toca cualquier producto arriba para agregarlo.</p>';
-        document.getElementById('basket-total').innerText = 'S/ 0.00';
+        if (totalEl) totalEl.innerText = 'S/ 0.00';
         return;
       }
 
       let html = '';
       keys.forEach(id => {
         const prod = catalog.find(p => p.id === id);
+        if (!prod) return;
         const qty = basket[id];
-        total += prod.price * qty;
+        const pPrice = typeof prod.price === 'number' ? prod.price : parseFloat(prod.price) || 0;
+        total += pPrice * qty;
         html += `
           <div class="row">
             <div>
               <strong>${prod.name}</strong><br>
-              <small style="color:var(--muted);">S/ ${prod.price.toFixed(2)} c/u</small>
+              <small style="color:var(--muted);">S/ ${pPrice.toFixed(2)} c/u</small>
             </div>
             <div class="qty-ctrl">
               <button class="btn-qty" onclick="updateQty('${id}', -1)">-</button>
@@ -487,38 +498,68 @@
         `;
       });
       container.innerHTML = html;
-      document.getElementById('basket-total').innerText = `S/ ${total.toFixed(2)}`;
+      if (totalEl) totalEl.innerText = `S/ ${total.toFixed(2)}`;
     }
 
     function sendOrderWhatsApp() {
       const keys = Object.keys(basket);
-      if (keys.length === 0) { alert("Tu canasta está vacía."); return; }
+      if (keys.length === 0) { 
+        alert("Tu canasta está vacía. Selecciona un producto primero."); 
+        return; 
+      }
 
       let total = 0;
-      let lineasPedido = "";
+      let lineas = [];
 
       keys.forEach(id => {
         const prod = catalog.find(p => p.id === id);
+        if (!prod) return;
         const qty = basket[id];
-        const sub = prod.price * qty;
+        const pPrice = typeof prod.price === 'number' ? prod.price : parseFloat(prod.price) || 0;
+        const sub = pPrice * qty;
         total += sub;
         const icon = prod.type === 'liquid' ? '☕' : '🍩';
-        lineasPedido += `${icon} *${qty}x* ${prod.name} -> S/ ${sub.toFixed(2)}\n`;
+        lineas.push(icon + " *" + qty + "x* " + prod.name + " -> S/ " + sub.toFixed(2));
       });
 
-      // Mensaje con formato limpio y elegante para WhatsApp
-      const mensaje = 
-`✨ *¡HOLA !REDONDA!* ✨
-Quisiera separar este pedido del carrito:
+      const textoFinal = [
+        "✨ *¡HOLA !REDONDA!* ✨",
+        "Quisiera separar este pedido del carrito:",
+        "",
+        lineas.join("\n"),
+        "----------------------------------",
+        "💰 *TOTAL A PAGAR: S/ " + total.toFixed(2) + "*",
+        "----------------------------------",
+        "",
+        "📍 ¿Aún tienes disponible para pasar a recoger? ¡Muchas gracias! 🙌"
+      ].join("\n");
 
-${lineasPedido}
-----------------------------------
-💰 *TOTAL A PAGAR: S/ ${total.toFixed(2)}*
-----------------------------------
-
-📍 ¿Aún tienes disponible para pasar a recoger? ¡Muchas gracias! 🙌`;
-
-      // Enlace universal compatible móvil y PC
-      const url = `https://api.whatsapp.com/send?phone=${WHATSAPP_NUM}&text=${encodeURIComponent(mensaje)}`;
-      window.open(url, '_blank');
+      const link = "https://api.whatsapp.com/send?phone=" + WHATSAPP_NUM + "&text=" + encodeURIComponent(textoFinal);
+      window.open(link, '_blank');
     }
+
+    // Inicialización inmediata y conexión a Firebase
+    window.addEventListener('DOMContentLoaded', () => {
+      applyMenuTexts();
+      renderMenu();
+
+      if (db) {
+        db.ref('settings/menuConfig').on('value', snap => {
+          if (snap.val()) {
+            menuConfig = Object.assign({}, menuConfig, snap.val());
+            applyMenuTexts();
+          }
+        });
+
+        db.ref('catalog').on('value', snapshot => {
+          const val = snapshot.val();
+          if (val && Array.isArray(val) && val.length > 0) {
+            catalog = val;
+            renderMenu();
+          }
+        });
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,1509 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>!Redonda - Panel Privado & POS</title>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <style>
+    :root {
+      --matcha: #9ca87e;
+      --matcha-light: #f0f3eb;
+      --matcha-dark: #6e7a53;
+      --pink-glaze: #f29bb0;
+      --pink-soft: #fcecef;
+      --pink-accent: #e06d88;
+      --cream: #fdfbf7;
+      --text: #3e2f28;
+      --muted: #7d6e65;
+      --border: #e2ddd5;
+      --success: #2e7d32;
+      --danger: #c62828;
+      --yape: #742284;
+      --plin: #00bcd4;
+      --cash: #2e7d32;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--cream); color: var(--text); padding-bottom: 85px; }
+
+    header {
+      background: var(--matcha); color: #fff; padding: 12px 18px;
+      display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 50;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .brand-title { display: flex; align-items: center; gap: 8px; }
+    .brand-title h1 { font-size: 19px; font-weight: 800; color: #fff; }
+    .badge-status { background: #fff; color: var(--matcha-dark); font-size: 11px; font-weight: 800; padding: 4px 8px; border-radius: 20px; }
+
+    nav {
+      position: fixed; bottom: 0; left: 0; right: 0; background: #fff;
+      display: flex; border-top: 1px solid var(--border); box-shadow: 0 -4px 12px rgba(0,0,0,0.04); z-index: 100;
+    }
+    nav button {
+      flex: 1; padding: 12px 2px; border: none; background: none; font-size: 11px;
+      font-weight: 700; color: var(--muted); cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px;
+    }
+    nav button.active { color: var(--pink-accent); border-top: 3px solid var(--pink-accent); }
+
+    .view { display: none; padding: 14px; max-width: 980px; margin: 0 auto; }
+    .view.active { display: block; }
+
+    /* Grid POS */
+    .grid-pos { display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .pos-card {
+      background: #fff; border: 1.5px solid var(--border); border-radius: 14px; padding: 10px;
+      cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; min-height: 90px;
+      transition: transform 0.1s ease;
+    }
+    .pos-card:active { transform: scale(0.97); background: var(--pink-soft); }
+    .pos-card.out-of-stock { opacity: 0.45; pointer-events: none; background: #f0ece6; }
+    .pos-card .title { font-weight: 800; font-size: 13px; margin-bottom: 4px; color: var(--text); }
+    .pos-card .meta { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+    .pos-card .price { color: var(--pink-accent); font-weight: 800; font-size: 14px; }
+    .stock-tag { font-size: 10px; padding: 2px 6px; border-radius: 6px; font-weight: 700; }
+    .stock-tag.ok { background: #e8f5e9; color: var(--success); }
+    .stock-tag.low { background: #fff8e1; color: #f57f17; }
+    .stock-tag.zero { background: #ffebee; color: var(--danger); }
+
+    /* Comanda */
+    .order-box {
+      background: #fff; border-radius: 14px; border: 1px solid var(--border); padding: 14px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.03); margin-bottom: 14px;
+    }
+    .order-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f7f4ef; }
+    .order-qty { display: flex; align-items: center; gap: 6px; }
+    .btn-qty {
+      width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 8px; background: #fff;
+      font-weight: 800; font-size: 14px; cursor: pointer; color: var(--text);
+    }
+    .btn-del {
+      background: #ffebee; border: none; color: var(--danger); border-radius: 6px;
+      width: 28px; height: 28px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+
+    .liquid-item-box { background: #fffdfa; border: 1px solid #f0e6d6; border-radius: 10px; padding: 8px; margin: 6px 0; }
+    .liquid-subrow { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; font-size: 12px; }
+
+    /* Empaques */
+    .pack-quick-bar { background: var(--matcha-light); border: 1px solid #d4debf; border-radius: 12px; padding: 10px; margin: 10px 0; }
+    .pack-quick-bar h4 { font-size: 11px; color: var(--matcha-dark); margin-bottom: 6px; text-transform: uppercase; font-weight: 800; }
+    .quick-chips-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .quick-chip-btn {
+      background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px;
+      font-size: 11px; font-weight: 700; cursor: pointer; color: var(--text);
+    }
+    .quick-chip-btn:active { background: var(--pink-soft); border-color: var(--pink-accent); }
+    .pack-active-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .pack-active-item {
+      background: #fff; border: 1.5px solid var(--pink-glaze); border-radius: 8px; padding: 4px 8px;
+      font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 6px;
+    }
+
+    /* Pagos */
+    .payment-grid { display: flex; gap: 6px; margin: 12px 0; }
+    .btn-pay {
+      flex: 1; padding: 10px 2px; border-radius: 10px; border: 2px solid var(--border);
+      background: #fff; font-weight: 700; font-size: 12px; cursor: pointer; text-align: center;
+    }
+    .btn-pay.selected[data-m="Efectivo"] { border-color: var(--cash); background: #e8f5e9; color: var(--cash); }
+    .btn-pay.selected[data-m="Yape"] { border-color: var(--yape); background: #f3e5f5; color: var(--yape); }
+    .btn-pay.selected[data-m="Plin"] { border-color: var(--plin); background: #e0f7fa; color: #00838f; }
+    .btn-pay.selected[data-m="Dividido"] { border-color: #f59e0b; background: #fffbeb; color: #b45309; }
+
+    .split-payment-box {
+      background: #fffbeb; border: 1px dashed #f59e0b; border-radius: 10px; padding: 10px; margin-bottom: 12px; display: none;
+    }
+    .split-row { display: flex; gap: 8px; margin-top: 6px; align-items: center; }
+
+    .btn-action {
+      width: 100%; padding: 14px; background: var(--pink-accent); color: #fff; border: none;
+      border-radius: 12px; font-size: 16px; font-weight: 800; cursor: pointer;
+    }
+    .btn-action:disabled { background: #d7d1cb; cursor: not-allowed; }
+    .btn-cancel-order {
+      width: 100%; padding: 10px; background: #fff; color: var(--muted); border: 1px solid var(--border);
+      border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; margin-top: 8px;
+    }
+
+    /* Métricas */
+    .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 14px; }
+    .stat-card { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 10px; }
+    .stat-card span { font-size: 10px; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+    .stat-card p { font-size: 18px; font-weight: 800; margin-top: 3px; }
+    .stat-card small { font-size: 10px; font-weight: 600; display: block; margin-top: 2px; }
+
+    .audit-card { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 8px; }
+    .audit-header { display: flex; justify-content: space-between; font-weight: 800; font-size: 13px; margin-bottom: 6px; }
+    .audit-body { font-size: 12px; color: #475569; margin-bottom: 6px; }
+    .audit-math {
+      display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 6px 8px; border-radius: 8px;
+      font-size: 11px; border-top: 1px dashed var(--border);
+    }
+
+    .btn-sec {
+      background: #f7f4ef; border: 1px solid var(--border); padding: 6px 10px; border-radius: 8px;
+      font-size: 12px; font-weight: 700; cursor: pointer; color: var(--text);
+    }
+    .btn-close-day {
+      background: #ffebee; color: var(--danger); border: 1.5px solid #ffcdd2; padding: 12px;
+      border-radius: 10px; font-weight: 800; font-size: 13px; cursor: pointer; width: 100%; margin-top: 15px;
+    }
+
+    /* Tabla PC */
+    .table-container { background: #fff; border: 1px solid var(--border); border-radius: 12px; overflow-x: auto; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; min-width: 650px; }
+    th, td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    th { background: #f7f4ef; color: var(--muted); font-weight: 700; }
+
+    /* Modales */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200;
+      display: none; align-items: center; justify-content: center; padding: 16px;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-card {
+      background: #fff; width: 100%; max-width: 440px; border-radius: 16px; padding: 18px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto;
+    }
+    .modal-card h3 { font-size: 16px; color: var(--text); margin-bottom: 12px; display: flex; justify-content: space-between; }
+    .modal-card label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin: 8px 0 3px 0; }
+    .modal-card input, .modal-card select {
+      width: 100%; padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px;
+    }
+    .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand-title">
+      <span style="font-size: 22px;">🍩</span>
+      <div>
+        <h1>!Redonda</h1>
+        <small style="font-size: 10px; opacity: 0.9;">Panel Privado & POS</small>
+      </div>
+    </div>
+    <span class="badge-status" id="cloud-status">☁️ Conectando...</span>
+  </header>
+
+  <!-- VISTA 1: POS -->
+  <div id="view-pos" class="view active">
+    <div class="grid-pos" id="pos-grid"></div>
+
+    <div class="order-box">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
+        <h3 style="font-size: 14px;">Comanda Actual</h3>
+        <button class="btn-sec" style="font-size:10px; padding:3px 6px;" onclick="cancelCurrentOrder()">Limpiar</button>
+      </div>
+      <div id="order-list">
+        <p style="color: var(--muted); font-size: 13px;">Toca un producto arriba para agregarlo.</p>
+      </div>
+
+      <div class="pack-quick-bar" id="pack-box" style="display:none;">
+        <h4>Empaques Usados:</h4>
+        <div class="quick-chips-grid" id="quick-pack-buttons"></div>
+        <div class="pack-active-chips" id="pack-active-list"></div>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; margin-top:10px; font-size:18px; font-weight:800;">
+        <span>Total a Cobrar:</span>
+        <span id="order-total-lbl" style="color: var(--pink-accent);">S/ 0.00</span>
+      </div>
+
+      <div class="payment-grid">
+        <button class="btn-pay selected" data-m="Efectivo" onclick="setPaymentMethod('Efectivo')">💵 Efectivo</button>
+        <button class="btn-pay" data-m="Yape" onclick="setPaymentMethod('Yape')">🟣 Yape</button>
+        <button class="btn-pay" data-m="Plin" onclick="setPaymentMethod('Plin')">🔵 Plin</button>
+        <button class="btn-pay" data-m="Dividido" onclick="setPaymentMethod('Dividido')">⚡ Dividido</button>
+      </div>
+
+      <div class="split-payment-box" id="split-box">
+        <span style="font-size:11px; font-weight:700; color:#b45309;">Distribución de Cobro Mixto:</span>
+        <div class="split-row">
+          <select id="split-m1" style="flex:1; padding:6px; border-radius:6px; font-size:12px;">
+            <option value="Efectivo">Efectivo</option>
+            <option value="Yape" selected>Yape</option>
+            <option value="Plin">Plin</option>
+          </select>
+          <input type="number" id="split-val1" placeholder="Monto 1" style="flex:1; padding:6px; border-radius:6px; font-size:12px;" oninput="syncSplitValues()">
+        </div>
+        <div class="split-row">
+          <select id="split-m2" style="flex:1; padding:6px; border-radius:6px; font-size:12px;">
+            <option value="Efectivo" selected>Efectivo</option>
+            <option value="Yape">Yape</option>
+            <option value="Plin">Plin</option>
+          </select>
+          <input type="number" id="split-val2" placeholder="Monto 2" style="flex:1; padding:6px; border-radius:6px; font-size:12px;" readonly>
+        </div>
+      </div>
+
+      <button id="btn-submit-order" class="btn-action" onclick="finishOrder()" disabled>Registrar Venta</button>
+      <button class="btn-cancel-order" id="btn-cancel-order" style="display:none;" onclick="cancelCurrentOrder()">✕ Cancelar Pedido Actual</button>
+    </div>
+
+    <h4 style="margin: 12px 0 6px 0; font-size: 13px;">Últimas ventas del turno</h4>
+    <div id="quick-sales-log" style="font-size: 12px; display: flex; flex-direction: column; gap: 6px;"></div>
+  </div>
+
+  <!-- VISTA 2: ARQUEO DE HOY -->
+  <div id="view-report" class="view">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <h2>Arqueo del Turno Actual</h2>
+      <button class="btn-sec" onclick="exportDataCSV(false)">📥 Descargar CSV de Hoy</button>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <span>Venta Bruta</span>
+        <p id="sum-total" style="color: var(--pink-accent);">S/ 0.00</p>
+      </div>
+      <div class="stat-card">
+        <span>Ganancia Neta</span>
+        <p id="sum-profit" style="color: var(--success);">S/ 0.00</p>
+        <small id="sum-margin" style="color: var(--success);">Margen: 0%</small>
+      </div>
+      <div class="stat-card">
+        <span>Efectivo en Mano</span>
+        <p id="sum-cash">S/ 0.00</p>
+      </div>
+      <div class="stat-card">
+        <span>Yape / Plin</span>
+        <p id="sum-digital">S/ 0.00</p>
+      </div>
+    </div>
+
+    <h3 style="margin: 10px 0 6px 0; font-size: 13px;">Costos Reales e Insumos Consumidos</h3>
+    <div class="stats-row" style="grid-template-columns: repeat(4, 1fr);">
+      <div class="stat-card">
+        <span>Costo Donas</span>
+        <p id="sum-donas-cost" style="font-size:14px;">S/ 0.00</p>
+      </div>
+      <div class="stat-card">
+        <span>Costo Bebidas+Vasos</span>
+        <p id="sum-liquid-cost" style="font-size:14px;">S/ 0.00</p>
+      </div>
+      <div class="stat-card">
+        <span>Gasto Leche (Latte)</span>
+        <p id="sum-latte-cost" style="font-size:14px; color: #b45309;">S/ 0.00</p>
+      </div>
+      <div class="stat-card">
+        <span>Gasto Empaques</span>
+        <p id="sum-pack-cost" style="font-size:14px; color: var(--danger);">S/ 0.00</p>
+      </div>
+    </div>
+
+    <h3 style="margin: 12px 0 8px 0; font-size: 13px;">Auditoría Venta x Venta</h3>
+    <div id="audit-sales-container"></div>
+
+    <button class="btn-close-day" onclick="openCloseDayModal()">🔒 Cerrar Jornada / Registrar Mermas y Resetear</button>
+  </div>
+
+  <!-- VISTA 3: STOCK & INVENTARIO -->
+  <div id="view-manage" class="view">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+      <h2>Producción del Día</h2>
+      <button class="btn-sec" onclick="openProductModal(null)">+ Agregar Producto</button>
+    </div>
+
+    <div id="products-manage-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin: 18px 0 8px 0;">
+      <h2>Almacén de Empaques</h2>
+      <button class="btn-sec" onclick="openPackModal()">+ Nuevo Insumo</button>
+    </div>
+    <div id="pack-manage-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+  </div>
+
+  <!-- VISTA 4: HISTORIAL & ANÁLISIS PC -->
+  <div id="view-history" class="view">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+      <h2>Historial Completo & Análisis (PC)</h2>
+      <button class="btn-sec" style="background:#e8f5e9; border-color:#c8e6c9;" onclick="exportDataCSV(true)">📊 Descargar Dataset Completo (CSV)</button>
+    </div>
+
+    <div style="background:#fff; border:1px solid var(--border); border-radius:12px; padding:10px; margin-bottom:14px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+      <div style="flex:1; min-width:140px;">
+        <label style="font-size:11px; font-weight:700; color:var(--muted);">Filtrar por Fecha:</label>
+        <input type="date" id="hist-filter-date" onchange="renderHistoryTable()" style="width:100%; padding:6px; border:1px solid var(--border); border-radius:6px; font-size:12px;">
+      </div>
+      <div style="flex:1; min-width:140px;">
+        <label style="font-size:11px; font-weight:700; color:var(--muted);">Método de Pago:</label>
+        <select id="hist-filter-method" onchange="renderHistoryTable()" style="width:100%; padding:6px; border:1px solid var(--border); border-radius:6px; font-size:12px;">
+          <option value="ALL">Todos los Métodos</option>
+          <option value="Efectivo">Efectivo</option>
+          <option value="Yape">Yape</option>
+          <option value="Plin">Plin</option>
+          <option value="Dividido">Dividido</option>
+        </select>
+      </div>
+      <button class="btn-sec" style="margin-top:16px;" onclick="clearHistoryFilters()">Ver Todo (General)</button>
+    </div>
+
+    <div class="stats-row" id="history-summary-cards" style="margin-bottom:12px;"></div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Hora</th>
+            <th>Método</th>
+            <th>Items Vendidos</th>
+            <th>Empaques</th>
+            <th>Total Cobrado</th>
+            <th>Costo Alimentos</th>
+            <th>Costo Empaques</th>
+            <th>Ganancia Neta</th>
+            <th>Acción</th>
+          </tr>
+        </thead>
+        <tbody id="history-table-body"></tbody>
+      </table>
+    </div>
+
+    <h3 style="margin: 15px 0 8px 0; font-size: 14px;">Jornadas Cerradas y Mermas (Toca una para ver detalle)</h3>
+    <div id="closed-days-container" style="display:flex; flex-direction:column; gap:8px;"></div>
+  </div>
+
+  <!-- NAVEGACIÓN INFERIOR -->
+  <nav>
+    <button class="active" onclick="showTab('pos', this)">🛒 <span>POS</span></button>
+    <button onclick="showTab('report', this)">📊 <span>Arqueo</span></button>
+    <button onclick="showTab('manage', this)">📦 <span>Inventario</span></button>
+    <button onclick="showTab('history', this)">💻 <span>Historial PC</span></button>
+  </nav>
+
+  <!-- MODAL EDITAR / AGREGAR PRODUCTO -->
+  <div class="modal-overlay" id="modal-product">
+    <div class="modal-card">
+      <h3>
+        <span id="modal-product-title">Producto</span>
+        <span style="cursor:pointer;" onclick="closeModal('modal-product')">✕</span>
+      </h3>
+      <input type="hidden" id="m-prod-edit-id">
+
+      <label>Tipo de Producto:</label>
+      <select id="m-prod-type" onchange="toggleModalLiquidFields()">
+        <option value="unit">🍩 Dona / Sólido (por unidad)</option>
+        <option value="liquid">☕ Bebida / Líquido (por termo)</option>
+      </select>
+
+      <label>Nombre del Producto:</label>
+      <input type="text" id="m-prod-name" placeholder="ej. Chocolatada Caliente">
+
+      <label>Precio de Venta al Público (S/):</label>
+      <input type="number" step="0.10" id="m-prod-price" placeholder="2.50">
+
+      <div id="m-unit-fields">
+        <label>Costo de Preparación Unitario (S/):</label>
+        <input type="number" step="0.10" id="m-prod-cost" placeholder="1.50">
+        <label>Cantidad Preparada Hoy:</label>
+        <input type="number" id="m-prod-stock" placeholder="15">
+      </div>
+
+      <div id="m-liquid-fields" style="display:none;">
+        <label>Litros del Termo / Olla (L):</label>
+        <input type="number" step="0.1" id="m-liq-liters" placeholder="1.8" oninput="updateModalLiquidPreview()">
+        
+        <label>Vaso Descartable Indexado del Almacén:</label>
+        <select id="m-liq-cup-index" onchange="updateModalLiquidPreview()"></select>
+
+        <label>Mililitros reales servidos por vaso:</label>
+        <input type="number" id="m-liq-cupml" value="180" oninput="updateModalLiquidPreview()">
+
+        <label>Costo total ingredientes del termo (S/):</label>
+        <input type="number" step="0.5" id="m-liq-batchcost" placeholder="9.00" oninput="updateModalLiquidPreview()">
+
+        <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:8px; margin-top:8px; font-size:12px;" id="m-liq-preview">
+          Cálculo: Rinde aproximado.
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-sec" style="flex:1;" onclick="closeModal('modal-product')">Cancelar</button>
+        <button class="btn-action" style="flex:1; padding:10px;" onclick="saveProductModal()">Guardar Cambios</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL AGREGAR INSUMO -->
+  <div class="modal-overlay" id="modal-pack">
+    <div class="modal-card">
+      <h3>
+        <span>Nuevo Insumo o Empaque</span>
+        <span style="cursor:pointer;" onclick="closeModal('modal-pack')">✕</span>
+      </h3>
+      <label>Nombre del Empaque:</label>
+      <input type="text" id="m-pack-name" placeholder="ej. Vaso 8oz + Tapa">
+
+      <label>Tipo de Insumo:</label>
+      <select id="m-pack-type">
+        <option value="pack">🛍️ Empaque General (Bolsas, Cajas, Platos)</option>
+        <option value="cup">🥤 Vaso Descartable para Bebidas</option>
+      </select>
+
+      <label>Costo Unitario (S/):</label>
+      <input type="number" step="0.05" id="m-pack-cost" placeholder="0.30">
+
+      <label>Cantidad Disponible en Almacén:</label>
+      <input type="number" id="m-pack-stock" placeholder="100">
+
+      <div class="modal-actions">
+        <button class="btn-sec" style="flex:1;" onclick="closeModal('modal-pack')">Cancelar</button>
+        <button class="btn-action" style="flex:1; padding:10px;" onclick="savePackModal()">Guardar Insumo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL CONFIRMAR CIERRE DE TURNO -->
+  <div class="modal-overlay" id="modal-close-day">
+    <div class="modal-card">
+      <h3 style="color:var(--danger);">
+        <span>🔒 Confirmar Cierre de Turno</span>
+        <span style="cursor:pointer;" onclick="closeModal('modal-close-day')">✕</span>
+      </h3>
+      <div id="m-close-day-summary" style="font-size:13px; line-height:1.5;"></div>
+      <div class="modal-actions">
+        <button class="btn-sec" style="flex:1;" onclick="closeModal('modal-close-day')">Cancelar</button>
+        <button class="btn-action" style="flex:1; background:var(--danger); padding:10px;" onclick="confirmFinalDayClose()">Confirmar Cierre</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DETALLE DE JORNADA CERRADA -->
+  <div class="modal-overlay" id="modal-closed-day">
+    <div class="modal-card">
+      <h3>
+        <span id="m-cd-title">Detalle de Jornada</span>
+        <span style="cursor:pointer;" onclick="closeModal('modal-closed-day')">✕</span>
+      </h3>
+      <div id="m-cd-body" style="font-size:13px; color:var(--text);"></div>
+      <div class="modal-actions">
+        <button class="btn-action" style="width:100%;" onclick="closeModal('modal-closed-day')">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // CONFIGURACIÓN DE FIREBASE
+    const firebaseConfig = {
+      apiKey: "AIzaSyAiUpu5hzBgu0rg7Wj-ny67iv27t1iYH98",
+      authDomain: "redonda-donas.firebaseapp.com",
+      databaseURL: "https://redonda-donas-default-rtdb.firebaseio.com",
+      projectId: "redonda-donas",
+      storageBucket: "redonda-donas.firebasestorage.app",
+      messagingSenderId: "1068537166011",
+      appId: "1:1068537166011:web:e3639a5d29a614b65c519e"
+    };
+
+    let isFirebaseReady = false;
+    let db = null;
+    try {
+      if (firebaseConfig.apiKey !== "TU_API_KEY") {
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.database();
+        isFirebaseReady = true;
+      }
+    } catch(e) { console.warn("Modo Local:", e); }
+
+    let packInventory = JSON.parse(localStorage.getItem('pos_pack_v11')) || {
+      "bolsa_25": { name: 'Bolsa #25', type: 'pack', cost: 0.20, stock: 100, usedToday: 0, quick: true },
+      "bolsa_10": { name: 'Bolsa #10', type: 'pack', cost: 0.15, stock: 100, usedToday: 0, quick: false },
+      "bolsa_2": { name: 'Bolsa #2', type: 'pack', cost: 0.10, stock: 100, usedToday: 0, quick: true },
+      "caja_3": { name: 'Caja #3', type: 'pack', cost: 0.70, stock: 50, usedToday: 0, quick: true },
+      "caja_4": { name: 'Caja #4', type: 'pack', cost: 0.90, stock: 50, usedToday: 0, quick: true },
+      "caja_6": { name: 'Caja #6', type: 'pack', cost: 1.20, stock: 50, usedToday: 0, quick: false },
+      "plato_1": { name: 'Plato #1', type: 'pack', cost: 0.15, stock: 100, usedToday: 0, quick: true },
+      "plato_2": { name: 'Plato #2', type: 'pack', cost: 0.20, stock: 100, usedToday: 0, quick: false },
+      "pirotin_9": { name: 'Pirotín #9', type: 'pack', cost: 0.05, stock: 200, usedToday: 0, quick: true },
+      "vaso_9oz": { name: 'Vaso 9oz + Tapa', type: 'cup', cost: 0.35, stock: 80, usedToday: 0, quick: false },
+      "cucharitas": { name: 'Cucharita', type: 'pack', cost: 0.05, stock: 100, usedToday: 0, quick: true }
+    };
+
+    let catalog = JSON.parse(localStorage.getItem('pos_catalog_v11')) || [
+      { id: 'p1', name: 'Dona Chocolate', type: 'unit', cost: 1.50, price: 3.50, initialBatch: 15, currentStock: 15 },
+      { id: 'p2', name: 'Dona Maracuyá', type: 'unit', cost: 1.60, price: 4.00, initialBatch: 10, currentStock: 10 },
+      { id: 'p3', name: 'Dona Manjar Blanco', type: 'unit', cost: 1.40, price: 3.50, initialBatch: 15, currentStock: 15 },
+      { 
+        id: 'p4', name: 'Chocolatada Caliente', type: 'liquid',
+        totalLiters: 1.8, cupMl: 180, batchCost: 9.00,
+        cupKey: 'vaso_9oz',
+        liquidCostPerCup: 0.90,
+        cost: 1.25,
+        price: 2.50,
+        hasLatteOption: true,
+        latteCostExtra: 0.30,
+        lattePriceExtra: 0.00,
+        initialBatch: 10, currentStock: 10
+      }
+    ];
+
+    let sales = JSON.parse(localStorage.getItem('pos_sales_v11')) || [];
+    let closedDays = JSON.parse(localStorage.getItem('pos_closed_days_v11')) || [];
+    let currentCart = {};
+    let currentOrderPacks = {};
+    let selectedPayMethod = 'Efectivo';
+    let tempMermasToClose = [];
+
+    function init() {
+      const statusEl = document.getElementById('cloud-status');
+      if (isFirebaseReady) {
+        statusEl.innerText = "☁️ Sincronizado";
+        db.ref('catalog').on('value', snap => { if(snap.val()) { catalog = snap.val(); renderAll(); } });
+        db.ref('sales').on('value', snap => { if(snap.val()) { sales = snap.val(); renderAll(); } });
+        db.ref('packInventory').on('value', snap => { if(snap.val()) { packInventory = snap.val(); renderAll(); } });
+        db.ref('closedDays').on('value', snap => { if(snap.val()) { closedDays = snap.val(); renderAll(); } });
+      } else {
+        statusEl.innerText = "● Modo Local";
+      }
+
+      window.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+          document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+        }
+      });
+
+      renderAll();
+    }
+
+    function renderAll() {
+      renderPOS();
+      renderManagement();
+      renderReports();
+      renderQuickPackButtons();
+      renderHistoryTable();
+      populateCupDropdown();
+    }
+
+    function saveState() {
+      localStorage.setItem('pos_catalog_v11', JSON.stringify(catalog));
+      localStorage.setItem('pos_sales_v11', JSON.stringify(sales));
+      localStorage.setItem('pos_pack_v11', JSON.stringify(packInventory));
+      localStorage.setItem('pos_closed_days_v11', JSON.stringify(closedDays));
+
+      if (isFirebaseReady) {
+        db.ref('catalog').set(catalog);
+        db.ref('sales').set(sales);
+        db.ref('packInventory').set(packInventory);
+        db.ref('closedDays').set(closedDays);
+      }
+      renderAll();
+    }
+
+    // --- POS ---
+    function renderPOS() {
+      const grid = document.getElementById('pos-grid');
+      grid.innerHTML = catalog.map(p => {
+        const isOut = p.currentStock <= 0;
+        let badgeClass = 'ok';
+        if (p.currentStock <= 3) badgeClass = 'low';
+        if (isOut) badgeClass = 'zero';
+        const labelStock = p.type === 'liquid' ? `${p.currentStock} v.` : `${p.currentStock} disp.`;
+
+        return `
+          <div class="pos-card ${isOut ? 'out-of-stock' : ''}" onclick="addToCart('${p.id}')">
+            <div class="title">${p.type === 'liquid' ? '☕' : '🍩'} ${p.name}</div>
+            <div class="meta">
+              <span class="price">S/ ${p.price.toFixed(2)}</span>
+              <span class="stock-tag ${badgeClass}">${isOut ? 'Agotado' : labelStock}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+      renderCartUI();
+      renderQuickLog();
+    }
+
+    function addToCart(id) {
+      const prod = catalog.find(p => p.id === id);
+      let inCart = 0;
+      if (prod.type === 'liquid') {
+        const item = currentCart[id] || { qtyClassic: 0, qtyLatte: 0 };
+        inCart = item.qtyClassic + item.qtyLatte;
+      } else {
+        inCart = currentCart[id] ? currentCart[id].qty : 0;
+      }
+
+      if (!prod || prod.currentStock <= inCart) {
+        alert("Stock agotado.");
+        return;
+      }
+
+      if (prod.type === 'liquid') {
+        if (!currentCart[id]) currentCart[id] = { qtyClassic: 1, qtyLatte: 0 };
+        else currentCart[id].qtyClassic += 1;
+      } else {
+        if (!currentCart[id]) currentCart[id] = { qty: 1 };
+        else currentCart[id].qty += 1;
+      }
+      renderCartUI();
+    }
+
+    function updateLiquidSubQty(id, type, delta) {
+      const prod = catalog.find(p => p.id === id);
+      const item = currentCart[id];
+      if (!item) return;
+
+      const currentTotal = item.qtyClassic + item.qtyLatte;
+      if (delta > 0 && currentTotal >= prod.currentStock) {
+        alert("No queda más stock.");
+        return;
+      }
+
+      if (type === 'classic') item.qtyClassic = Math.max(0, item.qtyClassic + delta);
+      if (type === 'latte') item.qtyLatte = Math.max(0, item.qtyLatte + delta);
+
+      if (item.qtyClassic + item.qtyLatte === 0) delete currentCart[id];
+      renderCartUI();
+    }
+
+    function updateUnitQty(id, delta) {
+      const prod = catalog.find(p => p.id === id);
+      if (!currentCart[id]) return;
+      const newQty = currentCart[id].qty + delta;
+      if (newQty > prod.currentStock) {
+        alert("Stock máximo alcanzado.");
+        return;
+      }
+      if (newQty <= 0) delete currentCart[id];
+      else currentCart[id].qty = newQty;
+      renderCartUI();
+    }
+
+    function removeCartItem(id) {
+      delete currentCart[id];
+      renderCartUI();
+    }
+
+    function cancelCurrentOrder() {
+      currentCart = {};
+      currentOrderPacks = {};
+      renderCartUI();
+    }
+
+    function renderQuickPackButtons() {
+      const bar = document.getElementById('quick-pack-buttons');
+      bar.innerHTML = Object.keys(packInventory).map(k => `
+        <button class="quick-chip-btn" onclick="addQuickPack('${k}')">+ ${packInventory[k].name}</button>
+      `).join('');
+    }
+
+    function addQuickPack(key) {
+      currentOrderPacks[key] = (currentOrderPacks[key] || 0) + 1;
+      renderActivePackChips();
+    }
+
+    function changeOrderPackQty(key, delta) {
+      currentOrderPacks[key] = (currentOrderPacks[key] || 0) + delta;
+      if (currentOrderPacks[key] <= 0) delete currentOrderPacks[key];
+      renderActivePackChips();
+    }
+
+    function renderActivePackChips() {
+      const container = document.getElementById('pack-active-list');
+      const keys = Object.keys(currentOrderPacks);
+      if (keys.length === 0) {
+        container.innerHTML = '<span style="font-size:11px; color:var(--muted);">Sin empaques adicionales marcados.</span>';
+        return;
+      }
+      container.innerHTML = keys.map(k => `
+        <div class="pack-active-item">
+          <span>${packInventory[k].name}: <strong>${currentOrderPacks[k]}</strong></span>
+          <button class="btn-qty" style="width:20px; height:20px; font-size:11px;" onclick="changeOrderPackQty('${k}', -1)">-</button>
+          <button class="btn-qty" style="width:20px; height:20px; font-size:11px;" onclick="changeOrderPackQty('${k}', 1)">+</button>
+        </div>
+      `).join('');
+    }
+
+    function setPaymentMethod(m) {
+      selectedPayMethod = m;
+      document.querySelectorAll('.btn-pay').forEach(b => {
+        b.classList.toggle('selected', b.getAttribute('data-m') === m);
+      });
+      document.getElementById('split-box').style.display = (m === 'Dividido') ? 'block' : 'none';
+      if (m === 'Dividido') syncSplitValues();
+    }
+
+    function syncSplitValues() {
+      const total = calculateCartTotal();
+      const val1Input = document.getElementById('split-val1');
+      let v1 = parseFloat(val1Input.value) || 0;
+      if (v1 > total) { v1 = total; val1Input.value = v1; }
+      const v2 = Math.max(0, total - v1);
+      document.getElementById('split-val2').value = v2.toFixed(2);
+    }
+
+    function calculateCartTotal() {
+      let total = 0;
+      Object.keys(currentCart).forEach(id => {
+        const prod = catalog.find(p => p.id === id);
+        if (prod.type === 'liquid') {
+          total += prod.price * (currentCart[id].qtyClassic + currentCart[id].qtyLatte);
+        } else {
+          total += prod.price * currentCart[id].qty;
+        }
+      });
+      return total;
+    }
+
+    function renderCartUI() {
+      const container = document.getElementById('order-list');
+      const packBox = document.getElementById('pack-box');
+      const cancelBtn = document.getElementById('btn-cancel-order');
+      const keys = Object.keys(currentCart);
+      let total = 0;
+
+      if (keys.length === 0) {
+        container.innerHTML = '<p style="color: var(--muted); font-size: 13px;">Toca un producto arriba para agregarlo.</p>';
+        document.getElementById('order-total-lbl').innerText = 'S/ 0.00';
+        document.getElementById('btn-submit-order').disabled = true;
+        packBox.style.display = 'none';
+        cancelBtn.style.display = 'none';
+        document.getElementById('split-box').style.display = 'none';
+        return;
+      }
+
+      packBox.style.display = 'block';
+      cancelBtn.style.display = 'block';
+      renderActivePackChips();
+
+      let html = '';
+      keys.forEach(id => {
+        const prod = catalog.find(p => p.id === id);
+        if (prod.type === 'liquid') {
+          const item = currentCart[id];
+          const totalCups = item.qtyClassic + item.qtyLatte;
+          total += prod.price * totalCups;
+
+          html += `
+            <div class="liquid-item-box">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <strong>☕ ${prod.name} (S/ ${prod.price.toFixed(2)} c/u)</strong>
+                <button class="btn-del" onclick="removeCartItem('${id}')">✕</button>
+              </div>
+              <div class="liquid-subrow">
+                <span>• Clásica:</span>
+                <div class="order-qty">
+                  <button class="btn-qty" onclick="updateLiquidSubQty('${id}', 'classic', -1)">-</button>
+                  <span style="font-weight:700; width:16px; text-align:center;">${item.qtyClassic}</span>
+                  <button class="btn-qty" onclick="updateLiquidSubQty('${id}', 'classic', 1)">+</button>
+                </div>
+              </div>
+              <div class="liquid-subrow">
+                <span>• Con Latte <small style="color:#b45309; font-weight:700;">(-S/ 0.30)</small>:</span>
+                <div class="order-qty">
+                  <button class="btn-qty" onclick="updateLiquidSubQty('${id}', 'latte', -1)">-</button>
+                  <span style="font-weight:700; width:16px; text-align:center;">${item.qtyLatte}</span>
+                  <button class="btn-qty" onclick="updateLiquidSubQty('${id}', 'latte', 1)">+</button>
+                </div>
+              </div>
+            </div>
+          `;
+        } else {
+          const qty = currentCart[id].qty;
+          total += prod.price * qty;
+
+          html += `
+            <div class="order-row">
+              <div>
+                <strong>🍩 ${prod.name}</strong><br>
+                <small style="color: var(--muted);">S/ ${prod.price.toFixed(2)} c/u</small>
+              </div>
+              <div class="order-qty">
+                <button class="btn-qty" onclick="updateUnitQty('${id}', -1)">-</button>
+                <span style="font-weight: 700; width: 16px; text-align: center;">${qty}</span>
+                <button class="btn-qty" onclick="updateUnitQty('${id}', 1)">+</button>
+                <button class="btn-del" onclick="removeCartItem('${id}')">✕</button>
+              </div>
+            </div>
+          `;
+        }
+      });
+
+      container.innerHTML = html;
+      document.getElementById('order-total-lbl').innerText = `S/ ${total.toFixed(2)}`;
+      document.getElementById('btn-submit-order').disabled = false;
+      if (selectedPayMethod === 'Dividido') syncSplitValues();
+    }
+
+    function finishOrder() {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const dateKey = now.toISOString().split('T')[0];
+
+      let items = [];
+      let totalSale = 0;
+      let totalDonasCost = 0;
+      let totalLiquidCost = 0;
+      let totalLatteCost = 0;
+      let cupsUsage = {};
+
+      Object.keys(currentCart).forEach(id => {
+        const prod = catalog.find(p => p.id === id);
+        if (prod.type === 'liquid') {
+          const item = currentCart[id];
+          const totalCups = item.qtyClassic + item.qtyLatte;
+          prod.currentStock -= totalCups;
+
+          const cupK = prod.cupKey || 'vaso_9oz';
+          cupsUsage[cupK] = (cupsUsage[cupK] || 0) + totalCups;
+
+          const saleAmount = prod.price * totalCups;
+          const baseCost = prod.cost * totalCups;
+          const latteFuga = item.qtyLatte * 0.30;
+
+          totalSale += saleAmount;
+          totalLiquidCost += baseCost;
+          totalLatteCost += latteFuga;
+
+          if (item.qtyClassic > 0) items.push({ prodId: prod.id, name: `${prod.name} (Clásica)`, qty: item.qtyClassic, price: prod.price });
+          if (item.qtyLatte > 0) items.push({ prodId: prod.id, name: `${prod.name} (Con Latte)`, qty: item.qtyLatte, price: prod.price });
+        } else {
+          const qty = currentCart[id].qty;
+          prod.currentStock -= qty;
+          const saleAmount = prod.price * qty;
+          const costAmount = prod.cost * qty;
+
+          totalSale += saleAmount;
+          totalDonasCost += costAmount;
+          items.push({ prodId: prod.id, name: prod.name, qty: qty, price: prod.price });
+        }
+      });
+
+      let totalPackCost = 0;
+      Object.keys(currentOrderPacks).forEach(k => {
+        const qty = currentOrderPacks[k];
+        totalPackCost += qty * packInventory[k].cost;
+        packInventory[k].stock -= qty;
+        packInventory[k].usedToday += qty;
+      });
+
+      Object.keys(cupsUsage).forEach(ck => {
+        if (packInventory[ck]) {
+          packInventory[ck].stock -= cupsUsage[ck];
+          packInventory[ck].usedToday += cupsUsage[ck];
+        }
+      });
+
+      const totalProfit = totalSale - totalDonasCost - totalLiquidCost - totalLatteCost - totalPackCost;
+
+      let payData = { method: selectedPayMethod, detail: selectedPayMethod };
+      if (selectedPayMethod === 'Dividido') {
+        const m1 = document.getElementById('split-m1').value;
+        const v1 = parseFloat(document.getElementById('split-val1').value) || 0;
+        const m2 = document.getElementById('split-m2').value;
+        const v2 = parseFloat(document.getElementById('split-val2').value) || 0;
+        payData = {
+          method: 'Dividido',
+          split: { m1, v1, m2, v2 },
+          detail: `${m1}: S/ ${v1.toFixed(2)} + ${m2}: S/ ${v2.toFixed(2)}`
+        };
+      }
+
+      sales.unshift({
+        id: 'rec_' + Date.now(),
+        date: dateKey,
+        time: timeStr,
+        items: items,
+        packs: { ...currentOrderPacks, ...cupsUsage },
+        packCost: totalPackCost,
+        donasCost: totalDonasCost,
+        liquidCost: totalLiquidCost,
+        latteCost: totalLatteCost,
+        payData: payData,
+        method: payData.detail,
+        total: totalSale,
+        profit: totalProfit
+      });
+
+      currentCart = {};
+      currentOrderPacks = {};
+      saveState();
+      alert(`✅ Venta guardada: S/ ${totalSale.toFixed(2)} (${payData.detail})`);
+    }
+
+    function deleteSale(saleId) {
+      const idx = sales.findIndex(s => s.id === saleId);
+      if (idx === -1) return;
+      const s = sales[idx];
+
+      if (!confirm(`¿Eliminar venta de ${s.time} (S/ ${s.total.toFixed(2)}) y restaurar su stock?`)) return;
+
+      // Devolver stock de alimentos
+      s.items.forEach(item => {
+        const prod = catalog.find(p => p.id === item.prodId || item.name.includes(p.name));
+        if (prod) prod.currentStock += item.qty;
+      });
+
+      // Devolver stock de empaques
+      if (s.packs) {
+        Object.keys(s.packs).forEach(k => {
+          if (packInventory[k]) {
+            packInventory[k].stock += s.packs[k];
+            packInventory[k].usedToday = Math.max(0, packInventory[k].usedToday - s.packs[k]);
+          }
+        });
+      }
+
+      sales.splice(idx, 1);
+      saveState();
+      alert("✅ Venta eliminada y stock restaurado.");
+    }
+
+    function renderQuickLog() {
+      const container = document.getElementById('quick-sales-log');
+      const recent = sales.slice(0, 4);
+      if (recent.length === 0) {
+        container.innerHTML = '<span style="color: var(--muted);">Sin ventas aún en el turno.</span>';
+        return;
+      }
+      container.innerHTML = recent.map(s => `
+        <div style="background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; display: flex; justify-content: space-between;">
+          <span>⏰ ${s.time} - <strong>${s.payData ? s.payData.detail : s.method}</strong> (${s.items.map(i=>i.qty+' '+i.name).join(', ')})</span>
+          <span style="font-weight: 700; color: var(--pink-accent);">S/ ${s.total.toFixed(2)}</span>
+        </div>
+      `).join('');
+    }
+
+    // --- ARQUEO ---
+    function renderReports() {
+      const container = document.getElementById('audit-sales-container');
+      const today = new Date().toISOString().split('T')[0];
+      const todaySales = sales.filter(s => s.date === today);
+
+      let total = 0, profit = 0, cash = 0, digital = 0;
+      let totalDonas = 0, totalLiquid = 0, totalLatte = 0, totalPack = 0;
+
+      if (todaySales.length === 0) {
+        container.innerHTML = '<p style="color: var(--muted); text-align:center; padding: 20px;">Sin ventas registradas hoy.</p>';
+      } else {
+        container.innerHTML = todaySales.map(s => {
+          total += s.total;
+          profit += s.profit;
+          totalDonas += s.donasCost || 0;
+          totalLiquid += s.liquidCost || 0;
+          totalLatte += s.latteCost || 0;
+          totalPack += s.packCost || 0;
+
+          if (s.payData && s.payData.method === 'Dividido') {
+            const sp = s.payData.split;
+            if (sp.m1 === 'Efectivo') cash += sp.v1; else digital += sp.v1;
+            if (sp.m2 === 'Efectivo') cash += sp.v2; else digital += sp.v2;
+          } else {
+            if (s.method && s.method.includes('Efectivo')) cash += s.total;
+            else digital += s.total;
+          }
+
+          const desc = s.items.map(i => `${i.qty}x ${i.name}`).join(', ');
+          const packList = s.packs 
+            ? Object.keys(s.packs).filter(k => s.packs[k] > 0).map(k => `${s.packs[k]} ${packInventory[k] ? packInventory[k].name : k}`).join(', ') 
+            : 'Ninguno';
+
+          return `
+            <div class="audit-card">
+              <div class="audit-header">
+                <span>⏰ ${s.time} - <strong>${s.payData ? s.payData.detail : s.method}</strong></span>
+                <span style="color: var(--pink-accent);">Cobrado: S/ ${s.total.toFixed(2)}</span>
+              </div>
+              <div class="audit-body">
+                <div>🛍️ <strong>Items:</strong> ${desc}</div>
+                <div style="margin-top:2px;">📦 <strong>Empaques:</strong> ${packList}</div>
+              </div>
+              <div class="audit-math">
+                <span>Costos Totales: S/ ${(s.donasCost + s.liquidCost + s.latteCost + s.packCost).toFixed(2)}</span>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="color: var(--success); font-weight:800;">Ganancia: S/ ${s.profit.toFixed(2)}</span>
+                  <button onclick="deleteSale('${s.id}')" style="background:#fee2e2; border:none; color:var(--danger); border-radius:4px; padding:2px 6px; font-size:10px; font-weight:700; cursor:pointer;">✕ Anular</button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      const globalMargin = total > 0 ? ((profit / total) * 100).toFixed(1) : 0;
+      document.getElementById('sum-total').innerText = `S/ ${total.toFixed(2)}`;
+      document.getElementById('sum-profit').innerText = `S/ ${profit.toFixed(2)}`;
+      document.getElementById('sum-margin').innerText = `Margen: ${globalMargin}%`;
+      document.getElementById('sum-cash').innerText = `S/ ${cash.toFixed(2)}`;
+      document.getElementById('sum-digital').innerText = `S/ ${digital.toFixed(2)}`;
+      document.getElementById('sum-donas-cost').innerText = `S/ ${totalDonas.toFixed(2)}`;
+      document.getElementById('sum-liquid-cost').innerText = `S/ ${totalLiquid.toFixed(2)}`;
+      document.getElementById('sum-latte-cost').innerText = `S/ ${totalLatte.toFixed(2)}`;
+      document.getElementById('sum-pack-cost').innerText = `S/ ${totalPack.toFixed(2)}`;
+    }
+
+    // --- MODAL DE CIERRE DE JORNADA ---
+    function openCloseDayModal() {
+      tempMermasToClose = [];
+      let totalPerdida = 0;
+      let html = '<p style="margin-bottom:8px;">Revisa los productos sobrantes que se archivarán como merma:</p>';
+
+      catalog.forEach(p => {
+        if (p.currentStock > 0) {
+          const perdida = p.currentStock * p.cost;
+          totalPerdida += perdida;
+          tempMermasToClose.push({ name: p.name, leftQty: p.currentStock, lostMoney: perdida });
+          html += `<div style="background:#f8fafc; border:1px solid var(--border); border-radius:6px; padding:6px; margin-bottom:4px;">
+            • <strong>${p.name}</strong>: ${p.currentStock} unidades sobraron (Costo: S/ ${perdida.toFixed(2)})
+          </div>`;
+        }
+      });
+
+      if (tempMermasToClose.length === 0) {
+        html += '<div style="background:#e8f5e9; color:var(--success); border-radius:6px; padding:8px; font-weight:700;">¡Cero mermas! Se vendió absolutamente todo.</div>';
+      } else {
+        html += `<div style="margin-top:8px; font-weight:800; color:var(--danger);">Pérdida Total en Sobrantes: S/ ${totalPerdida.toFixed(2)}</div>`;
+      }
+
+      html += '<p style="margin-top:10px; font-size:12px; color:var(--muted);">Al confirmar, el stock del POS quedará en 0 para mañana.</p>';
+
+      document.getElementById('m-close-day-summary').innerHTML = html;
+      document.getElementById('modal-close-day').classList.add('active');
+    }
+
+    function confirmFinalDayClose() {
+      const today = new Date().toISOString().split('T')[0];
+      const totalLost = tempMermasToClose.reduce((acc, m) => acc + m.lostMoney, 0);
+
+      closedDays.unshift({
+        id: 'cd_' + Date.now(),
+        date: today,
+        timestamp: Date.now(),
+        mermas: tempMermasToClose,
+        lostMoney: totalLost
+      });
+
+      catalog.forEach(p => {
+        p.initialBatch = 0;
+        p.currentStock = 0;
+        if (p.type === 'liquid') p.totalLiters = 0;
+      });
+      Object.keys(packInventory).forEach(k => {
+        packInventory[k].usedToday = 0;
+      });
+
+      closeModal('modal-close-day');
+      saveState();
+      alert("✅ Turno cerrado exitosamente. Stock en 0 listo para mañana.");
+    }
+
+    // --- HISTORIAL PC ---
+    function renderHistoryTable() {
+      const tbody = document.getElementById('history-table-body');
+      const filterDate = document.getElementById('hist-filter-date').value;
+      const filterMethod = document.getElementById('hist-filter-method').value;
+
+      let filtered = sales;
+      if (filterDate) filtered = filtered.filter(s => s.date === filterDate);
+      if (filterMethod !== 'ALL') {
+        filtered = filtered.filter(s => s.payData ? s.payData.method === filterMethod : s.method.includes(filterMethod));
+      }
+
+      let sumT = 0, sumP = 0, sumC = 0, sumD = 0;
+      filtered.forEach(s => {
+        sumT += s.total;
+        sumP += s.profit;
+        if (s.payData && s.payData.method === 'Dividido') {
+          const sp = s.payData.split;
+          if (sp.m1 === 'Efectivo') sumC += sp.v1; else sumD += sp.v1;
+          if (sp.m2 === 'Efectivo') sumC += sp.v2; else sumD += sp.v2;
+        } else {
+          if (s.method && s.method.includes('Efectivo')) sumC += s.total;
+          else sumD += s.total;
+        }
+      });
+
+      document.getElementById('history-summary-cards').innerHTML = `
+        <div class="stat-card"><span>Total Filtrado</span><p style="color:var(--pink-accent);">S/ ${sumT.toFixed(2)}</p></div>
+        <div class="stat-card"><span>Ganancia Filtrada</span><p style="color:var(--success);">S/ ${sumP.toFixed(2)}</p></div>
+        <div class="stat-card"><span>Efectivo Total</span><p>S/ ${sumC.toFixed(2)}</p></div>
+        <div class="stat-card"><span>Yape/Plin Total</span><p>S/ ${sumD.toFixed(2)}</p></div>
+      `;
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; color:var(--muted); padding:15px;">No hay registros con este filtro.</td></tr>';
+      } else {
+        tbody.innerHTML = filtered.map(s => {
+          const itemsStr = s.items.map(i => `${i.qty}x ${i.name}`).join(', ');
+          const packStr = s.packs ? Object.keys(s.packs).filter(k => s.packs[k] > 0).map(k => `${s.packs[k]} ${k}`).join(', ') : '-';
+          const foodCostTotal = (s.donasCost || 0) + (s.liquidCost || 0) + (s.latteCost || 0);
+
+          return `
+            <tr>
+              <td>${s.date}</td>
+              <td>${s.time}</td>
+              <td><strong>${s.payData ? s.payData.detail : s.method}</strong></td>
+              <td>${itemsStr}</td>
+              <td><small>${packStr}</small></td>
+              <td style="font-weight:700; color:var(--pink-accent);">S/ ${s.total.toFixed(2)}</td>
+              <td>S/ ${foodCostTotal.toFixed(2)}</td>
+              <td>S/ ${(s.packCost || 0).toFixed(2)}</td>
+              <td style="font-weight:700; color:var(--success);">S/ ${s.profit.toFixed(2)}</td>
+              <td><button onclick="deleteSale('${s.id}')" style="background:#fee2e2; border:none; color:var(--danger); border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer;">✕</button></td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      const closedBox = document.getElementById('closed-days-container');
+      if (closedDays.length === 0) {
+        closedBox.innerHTML = '<span style="color:var(--muted); font-size:12px;">Sin jornadas cerradas en el historial.</span>';
+      } else {
+        closedBox.innerHTML = closedDays.map(cd => `
+          <div style="background:#fff; border:1.5px solid var(--border); border-radius:10px; padding:12px; font-size:12px; cursor:pointer;" onclick="openClosedDayModal('${cd.id || cd.timestamp}')" title="Clic para ver reporte completo">
+            <div style="display:flex; justify-content:space-between; font-weight:700; margin-bottom:4px;">
+              <span>📅 Jornada: <strong>${cd.date}</strong> <small style="color:var(--pink-accent);">(Toca para ver)</small></span>
+              <span style="color:var(--danger);">Pérdida Mermas: S/ ${cd.lostMoney.toFixed(2)}</span>
+            </div>
+            <div style="color:#64748b;">
+              ${cd.mermas && cd.mermas.length > 0 ? cd.mermas.map(m => `${m.leftQty}x${m.name}`).join(' | ') : 'Cero mermas (Todo vendido)'}
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
+    function openClosedDayModal(idKey) {
+      const cd = closedDays.find(x => (x.id == idKey || x.timestamp == idKey));
+      if (!cd) return;
+
+      document.getElementById('m-cd-title').innerText = `Reporte de Jornada: ${cd.date}`;
+      const daySales = sales.filter(s => s.date === cd.date);
+      let tCobrado = 0, tGanancia = 0;
+      daySales.forEach(s => { tCobrado += s.total; tGanancia += s.profit; });
+
+      let mermasHtml = cd.mermas && cd.mermas.length > 0 
+        ? cd.mermas.map(m => `• <strong>${m.leftQty}x ${m.name}</strong> (Costo perdido: S/ ${m.lostMoney.toFixed(2)})`).join('<br>')
+        : '• ¡No hubo mermas! Todo el stock se vendió.';
+
+      document.getElementById('m-cd-body').innerHTML = `
+        <div style="background:#f8fafc; border-radius:8px; padding:10px; margin-bottom:12px;">
+          <div>💰 <strong>Total Recaudado en Ventas:</strong> S/ ${tCobrado.toFixed(2)}</div>
+          <div>📈 <strong>Ganancia Neta de Ventas:</strong> S/ ${tGanancia.toFixed(2)}</div>
+          <div>📉 <strong>Pérdida en Mermas/Sobrantes:</strong> S/ ${cd.lostMoney.toFixed(2)}</div>
+          <div style="margin-top:6px; font-weight:800; color:var(--success);">
+            Balance Final Real: S/ ${(tGanancia - cd.lostMoney).toFixed(2)}
+          </div>
+        </div>
+        <h4>Desglose de Productos Sobrantes:</h4>
+        <div style="margin-top:4px; line-height:1.5;">${mermasHtml}</div>
+        <button class="btn-sec" style="margin-top:12px; width:100%;" onclick="filterByClosedDayDate('${cd.date}')">🔍 Filtrar ventas de este día en la tabla</button>
+      `;
+      document.getElementById('modal-closed-day').classList.add('active');
+    }
+
+    function filterByClosedDayDate(dateStr) {
+      closeModal('modal-closed-day');
+      document.getElementById('hist-filter-date').value = dateStr;
+      renderHistoryTable();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function clearHistoryFilters() {
+      document.getElementById('hist-filter-date').value = '';
+      document.getElementById('hist-filter-method').value = 'ALL';
+      renderHistoryTable();
+    }
+
+    function exportDataCSV(exportAll) {
+      const today = new Date().toISOString().split('T')[0];
+      const dataToExport = exportAll ? sales : sales.filter(s => s.date === today);
+
+      if (dataToExport.length === 0) { alert("No hay datos para exportar."); return; }
+
+      let csv = "ID,FECHA,HORA,METODO_PAGO,ITEMS_VENDIDOS,EMPAQUES_USADOS,TOTAL_COBRADO_PEN,COSTO_DONAS_PEN,COSTO_BEBIDAS_PEN,FUGA_LATTE_PEN,COSTO_EMPAQUES_PEN,GANANCIA_NETA_PEN\n";
+
+      dataToExport.forEach(s => {
+        const items = s.items.map(i => `${i.qty}x ${i.name}`).join(' | ');
+        const packs = s.packs ? Object.keys(s.packs).filter(k => s.packs[k] > 0).map(k => `${s.packs[k]} ${k}`).join(' | ') : 'NINGUNO';
+        const methodStr = s.payData ? s.payData.detail : s.method;
+
+        csv += `"${s.id}","${s.date}","${s.time}","${methodStr}","${items}","${packs}",${s.total.toFixed(2)},${(s.donasCost||0).toFixed(2)},${(s.liquidCost||0).toFixed(2)},${(s.latteCost||0).toFixed(2)},${(s.packCost||0).toFixed(2)},${s.profit.toFixed(2)}\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = exportAll ? `dataset_redonda_completo_${today}.csv` : `ventas_redonda_${today}.csv`;
+      link.click();
+    }
+
+    // --- GESTIÓN DE PRODUCTOS ---
+    function renderManagement() {
+      const containerProds = document.getElementById('products-manage-list');
+      containerProds.innerHTML = catalog.map((p, idx) => {
+        const margin = p.price > 0 ? (((p.price - p.cost) / p.price) * 100).toFixed(0) : 0;
+        const isLiquid = p.type === 'liquid';
+        const cupName = isLiquid && packInventory[p.cupKey] ? packInventory[p.cupKey].name : 'Vaso';
+
+        return `
+          <div style="background:#fff; border:1px solid var(--border); border-radius:12px; padding:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <strong style="font-size:15px;">${isLiquid ? '☕' : '🍩'} ${p.name}</strong>
+              <div style="display:flex; gap:6px;">
+                <button onclick="openProductModal('${p.id}')" style="background:#eef2e6; border:none; color:var(--matcha-dark); border-radius:6px; padding:4px 10px; font-size:11px; font-weight:700; cursor:pointer;">✏️ Editar</button>
+                <button onclick="deleteProduct(${idx})" style="background:#fee2e2; border:none; color:var(--danger); border-radius:6px; padding:4px 8px; font-size:11px; cursor:pointer;">Borrar</button>
+              </div>
+            </div>
+            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:6px; margin-top:8px; font-size:11px;">
+              <div>
+                <label style="color:var(--muted);">Costo Total:</label>
+                <p style="font-weight:700; font-size:13px; margin-top:2px;">S/ ${p.cost.toFixed(2)}</p>
+              </div>
+              <div>
+                <label style="color:var(--muted);">Precio Venta:</label>
+                <p style="font-weight:700; font-size:13px; margin-top:2px; color:var(--pink-accent);">S/ ${p.price.toFixed(2)}</p>
+              </div>
+              <div>
+                <label style="color:var(--muted);">${isLiquid ? 'Litros Hoy:' : 'Lote Hoy:'}</label>
+                <p style="font-weight:700; font-size:13px; margin-top:2px;">${isLiquid ? p.totalLiters + ' L' : p.initialBatch}</p>
+              </div>
+              <div>
+                <label style="color:var(--muted);">Quedan:</label>
+                <div style="display:flex; align-items:center; gap:4px; margin-top:2px;">
+                  <strong style="font-size:13px;">${p.currentStock}</strong>
+                  ${isLiquid ? `
+                    <button class="btn-qty" style="width:20px; height:20px; font-size:11px;" onclick="adjustLiquidCupsManual(${idx}, -1)">-</button>
+                    <button class="btn-qty" style="width:20px; height:20px; font-size:11px;" onclick="adjustLiquidCupsManual(${idx}, 1)">+</button>
+                  ` : ''}
+                </div>
+              </div>
+            </div>
+            <div style="font-size:11px; color:var(--success); margin-top:6px;">
+              Margen: <strong>${margin}%</strong> ${isLiquid ? `(Usa ${cupName} indexado a S/ ${(packInventory[p.cupKey] ? packInventory[p.cupKey].cost : 0.35).toFixed(2)})` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      const containerPacks = document.getElementById('pack-manage-list');
+      containerPacks.innerHTML = Object.keys(packInventory).map(k => {
+        const item = packInventory[k];
+        return `
+          <div style="background:#fff; border:1px solid var(--border); border-radius:12px; padding:10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+            <div style="flex:1; min-width:140px;">
+              <input type="text" value="${item.name}" onchange="updatePackName('${k}', this.value)" style="font-weight:700; font-size:13px; border:none; border-bottom:1px dashed var(--border); width:95%;">
+              <small style="color:var(--muted); display:block;">${item.type === 'cup' ? '🥤 Vaso Indexado' : '🛍️ Empaque General'}</small>
+            </div>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <label style="font-size:11px;">Costo:
+                <input type="number" step="0.05" value="${item.cost}" onchange="updatePackVal('${k}', 'cost', this.value)" style="width:55px; padding:4px; border:1px solid var(--border); border-radius:6px;">
+              </label>
+              <label style="font-size:11px;">Stock:
+                <input type="number" value="${item.stock}" onchange="updatePackVal('${k}', 'stock', this.value)" style="width:55px; padding:4px; border:1px solid var(--border); border-radius:6px;">
+              </label>
+              <button onclick="deletePackItem('${k}')" style="background:#fee2e2; border:none; color:var(--danger); border-radius:6px; padding:4px 6px; font-size:10px; font-weight:700; cursor:pointer;" title="Eliminar Insumo">✕</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function deletePackItem(key) {
+      if (confirm(`¿Eliminar ${packInventory[key].name} del almacén?`)) {
+        delete packInventory[key];
+        saveState();
+      }
+    }
+
+    function adjustLiquidCupsManual(idx, delta) {
+      const p = catalog[idx];
+      p.currentStock = Math.max(0, p.currentStock + delta);
+      p.initialBatch = Math.max(p.initialBatch, p.currentStock);
+      saveState();
+    }
+
+    function recalculateLiquidCost(p) {
+      const cupCost = (packInventory[p.cupKey] ? packInventory[p.cupKey].cost : 0.35);
+      const cups = p.cupMl > 0 ? Math.floor((p.totalLiters * 1000) / p.cupMl) : 0;
+      const liquidCost = cups > 0 ? (p.batchCost / cups) : 0;
+      p.liquidCostPerCup = liquidCost;
+      p.cost = liquidCost + cupCost;
+      p.initialBatch = cups;
+      if (p.currentStock === 0 || p.currentStock > cups) p.currentStock = cups;
+    }
+
+    function updatePackName(key, newName) {
+      packInventory[key].name = newName.trim();
+      saveState();
+    }
+
+    function updatePackVal(key, field, val) {
+      packInventory[key][field] = parseFloat(val) || 0;
+      if (packInventory[key].type === 'cup') {
+        catalog.forEach(p => {
+          if (p.type === 'liquid' && p.cupKey === key) recalculateLiquidCost(p);
+        });
+      }
+      saveState();
+    }
+
+    function deleteProduct(idx) {
+      if (confirm(`¿Eliminar ${catalog[idx].name}?`)) {
+        catalog.splice(idx, 1);
+        saveState();
+      }
+    }
+
+    function populateCupDropdown() {
+      const select = document.getElementById('m-liq-cup-index');
+      if (!select) return;
+      const cups = Object.keys(packInventory).filter(k => packInventory[k].type === 'cup');
+      select.innerHTML = cups.map(k => `
+        <option value="${k}">${packInventory[k].name} (Costo: S/ ${packInventory[k].cost.toFixed(2)})</option>
+      `).join('');
+    }
+
+    function updateModalLiquidPreview() {
+      const liters = parseFloat(document.getElementById('m-liq-liters').value) || 0;
+      const cupMl = parseFloat(document.getElementById('m-liq-cupml').value) || 180;
+      const batchCost = parseFloat(document.getElementById('m-liq-batchcost').value) || 0;
+      const cupK = document.getElementById('m-liq-cup-index').value;
+      const cupCost = packInventory[cupK] ? packInventory[cupK].cost : 0.35;
+
+      const cups = cupMl > 0 ? Math.floor((liters * 1000) / cupMl) : 0;
+      const liquidCost = cups > 0 ? (batchCost / cups) : 0;
+      const totalUnitCost = liquidCost + cupCost;
+
+      document.getElementById('m-liq-preview').innerHTML = `
+        ☕ <strong>Rinde Estimado:</strong> ${cups} vasos servidos a ${cupMl}ml.<br>
+        💰 <strong>Costo Total Unitario:</strong> S/ ${totalUnitCost.toFixed(2)} (Líquido: S/ ${liquidCost.toFixed(2)} + Vaso: S/ ${cupCost.toFixed(2)})
+      `;
+    }
+
+    function openProductModal(prodId) {
+      populateCupDropdown();
+      document.getElementById('m-prod-edit-id').value = prodId || '';
+      document.getElementById('modal-product-title').innerText = prodId ? "Editar Producto" : "Nuevo Producto";
+
+      if (prodId) {
+        const p = catalog.find(x => x.id === prodId);
+        document.getElementById('m-prod-type').value = p.type;
+        document.getElementById('m-prod-name').value = p.name;
+        document.getElementById('m-prod-price').value = p.price;
+
+        if (p.type === 'unit') {
+          document.getElementById('m-prod-cost').value = p.cost;
+          document.getElementById('m-prod-stock').value = p.currentStock;
+        } else {
+          document.getElementById('m-liq-liters').value = p.totalLiters;
+          document.getElementById('m-liq-cupml').value = p.cupMl || 180;
+          document.getElementById('m-liq-batchcost').value = p.batchCost;
+          document.getElementById('m-liq-cup-index').value = p.cupKey || 'vaso_9oz';
+        }
+      } else {
+        document.getElementById('m-prod-name').value = '';
+        document.getElementById('m-prod-price').value = '';
+        document.getElementById('m-prod-cost').value = '';
+        document.getElementById('m-prod-stock').value = '';
+        document.getElementById('m-liq-liters').value = '1.8';
+        document.getElementById('m-liq-cupml').value = '180';
+        document.getElementById('m-liq-batchcost').value = '9.00';
+      }
+
+      document.getElementById('modal-product').classList.add('active');
+      toggleModalLiquidFields();
+    }
+
+    function openPackModal() { document.getElementById('modal-pack').classList.add('active'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+    function toggleModalLiquidFields() {
+      const isLiq = document.getElementById('m-prod-type').value === 'liquid';
+      document.getElementById('m-unit-fields').style.display = isLiq ? 'none' : 'block';
+      document.getElementById('m-liquid-fields').style.display = isLiq ? 'block' : 'none';
+      if (isLiq) updateModalLiquidPreview();
+    }
+
+    function saveProductModal() {
+      const editId = document.getElementById('m-prod-edit-id').value;
+      const type = document.getElementById('m-prod-type').value;
+      const name = document.getElementById('m-prod-name').value.trim();
+      const price = parseFloat(document.getElementById('m-prod-price').value) || 0;
+
+      if (!name) { alert("Ingresa un nombre."); return; }
+
+      if (editId) {
+        const p = catalog.find(x => x.id === editId);
+        p.name = name;
+        p.price = price;
+        p.type = type;
+
+        if (type === 'unit') {
+          p.cost = parseFloat(document.getElementById('m-prod-cost').value) || 0;
+          const s = parseInt(document.getElementById('m-prod-stock').value) || 0;
+          p.initialBatch = s;
+          p.currentStock = s;
+        } else {
+          p.totalLiters = parseFloat(document.getElementById('m-liq-liters').value) || 0;
+          p.cupMl = parseInt(document.getElementById('m-liq-cupml').value) || 180;
+          p.batchCost = parseFloat(document.getElementById('m-liq-batchcost').value) || 0;
+          p.cupKey = document.getElementById('m-liq-cup-index').value || 'vaso_9oz';
+          recalculateLiquidCost(p);
+        }
+      } else {
+        if (type === 'unit') {
+          const cost = parseFloat(document.getElementById('m-prod-cost').value) || 0;
+          const stock = parseInt(document.getElementById('m-prod-stock').value) || 0;
+          catalog.push({
+            id: 'p_' + Date.now(), name, type: 'unit', cost, price, initialBatch: stock, currentStock: stock
+          });
+        } else {
+          const liters = parseFloat(document.getElementById('m-liq-liters').value) || 1.8;
+          const cupMl = parseInt(document.getElementById('m-liq-cupml').value) || 180;
+          const batchCost = parseFloat(document.getElementById('m-liq-batchcost').value) || 8.0;
+          const cupKey = document.getElementById('m-liq-cup-index').value || 'vaso_9oz';
+          const cupCost = packInventory[cupKey] ? packInventory[cupKey].cost : 0.35;
+          const cups = Math.floor((liters * 1000) / cupMl);
+          const liquidCost = cups > 0 ? (batchCost / cups) : 0;
+
+          catalog.push({
+            id: 'p_' + Date.now(), name, type: 'liquid',
+            totalLiters: liters, cupMl, batchCost, cupKey,
+            liquidCostPerCup: liquidCost,
+            cost: liquidCost + cupCost,
+            price,
+            hasLatteOption: true,
+            latteCostExtra: 0.30,
+            lattePriceExtra: 0.00,
+            initialBatch: cups, currentStock: cups
+          });
+        }
+      }
+
+      closeModal('modal-product');
+      saveState();
+    }
+
+    function savePackModal() {
+      const name = document.getElementById('m-pack-name').value.trim();
+      const type = document.getElementById('m-pack-type').value;
+      const cost = parseFloat(document.getElementById('m-pack-cost').value) || 0;
+      const stock = parseInt(document.getElementById('m-pack-stock').value) || 0;
+
+      if (!name) { alert("Ingresa un nombre."); return; }
+      const key = (type === 'cup' ? 'vaso_' : 'pack_') + Date.now();
+      packInventory[key] = { name, type, cost, stock, usedToday: 0, quick: true };
+
+      closeModal('modal-pack');
+      saveState();
+    }
+
+    function showTab(tabId, btn) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+      document.getElementById('view-' + tabId).classList.add('active');
+      btn.classList.add('active');
+
+      if (tabId === 'report') renderReports();
+      if (tabId === 'history') renderHistoryTable();
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>

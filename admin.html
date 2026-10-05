@@ -4,9 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>!Redonda - Panel Privado & POS</title>
-  <!-- Firebase SDK -->
+  <link rel="icon" type="image/png" href="Redondah_20260723_174642_0000.png">
+
+  <!-- Firebase SDK Vanilla Compatible -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
   <style>
     :root {
       --matcha: #9ca87e;
@@ -35,8 +38,13 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     }
     .brand-title { display: flex; align-items: center; gap: 8px; }
+    .brand-title img { width: 34px; height: 34px; object-fit: contain; }
     .brand-title h1 { font-size: 19px; font-weight: 800; color: #fff; }
-    .badge-status { background: #fff; color: var(--matcha-dark); font-size: 11px; font-weight: 800; padding: 4px 8px; border-radius: 20px; }
+    .header-actions { display: flex; align-items: center; gap: 8px; }
+    .badge-status { font-size: 11px; font-weight: 800; padding: 4px 8px; border-radius: 20px; transition: all 0.3s ease; }
+    .badge-online { background: #fff; color: var(--matcha-dark); }
+    .badge-offline { background: #fff3e0; color: #e65100; border: 1px solid #ffb74d; }
+    .btn-logout { background: rgba(0,0,0,0.18); border: none; color: #fff; font-size: 11px; font-weight: 700; padding: 5px 8px; border-radius: 8px; cursor: pointer; }
 
     nav {
       position: fixed; bottom: 0; left: 0; right: 0; background: #fff;
@@ -178,15 +186,34 @@
 </head>
 <body>
 
+  <!-- MODAL DE ACCESO / BLOQUEO POR CONTRASEÑA -->
+  <div class="modal-overlay active" id="modal-auth" style="z-index: 9999; background: var(--matcha);">
+    <div class="modal-card" style="text-align: center; max-width: 330px;">
+      <span style="font-size: 38px;">🔒</span>
+      <h3 style="justify-content: center; margin-top: 6px;">Acceso a !Redonda POS</h3>
+      <p style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">Ingresa el PIN de seguridad del negocio:</p>
+      
+      <input type="password" id="auth-pin-input" placeholder="PIN" style="text-align: center; font-size: 20px; letter-spacing: 6px; padding: 10px;" onkeydown="if(event.key==='Enter') verifyPin()">
+      
+      <p id="auth-error-msg" style="color: var(--danger); font-size: 11px; margin-top: 6px; display: none; font-weight: 700;">PIN incorrecto. Intenta de nuevo.</p>
+
+      <button class="btn-action" style="margin-top: 14px; padding: 12px;" onclick="verifyPin()">Ingresar al Sistema</button>
+      <small style="display:block; margin-top:10px; font-size:10px; color:var(--muted);">PIN inicial por defecto: 1234</small>
+    </div>
+  </div>
+
   <header>
     <div class="brand-title">
-      <span style="font-size: 22px;">🍩</span>
+      <img src="Redondah_20260723_174642_0000.png" alt="!R" onerror="this.outerHTML='🍩'">
       <div>
         <h1>!Redonda</h1>
         <small style="font-size: 10px; opacity: 0.9;">Panel Privado & POS</small>
       </div>
     </div>
-    <span class="badge-status" id="cloud-status">☁️ Conectando...</span>
+    <div class="header-actions">
+      <span class="badge-status badge-online" id="cloud-status">☁️ En Línea</span>
+      <button class="btn-logout" onclick="logoutPOS()" title="Cerrar sesión en este dispositivo">🔒 Bloquear</button>
+    </div>
   </header>
 
   <!-- VISTA 1: POS -->
@@ -301,7 +328,7 @@
     <button class="btn-close-day" onclick="openCloseDayModal()">🔒 Cerrar Jornada / Registrar Mermas y Resetear</button>
   </div>
 
-  <!-- VISTA 3: STOCK & INVENTARIO -->
+  <!-- VISTA 3: STOCK & INVENTARIO + AJUSTES -->
   <div id="view-manage" class="view">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
       <h2>Producción del Día</h2>
@@ -315,13 +342,26 @@
       <button class="btn-sec" onclick="openPackModal()">+ Nuevo Insumo</button>
     </div>
     <div id="pack-manage-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+
+    <!-- CAMBIAR CONTRASEÑA -->
+    <div style="background:#fff; border:1px solid var(--border); border-radius:12px; padding:12px; margin-top:20px;">
+      <h3 style="font-size:14px; margin-bottom:6px;">🔐 Cambiar Contraseña / PIN de Acceso</h3>
+      <p style="font-size:11px; color:var(--muted); margin-bottom:8px;">Se actualizará en la nube y servirá para todos tus dispositivos.</p>
+      <div style="display:flex; gap:8px;">
+        <input type="password" id="new-pin-input" placeholder="Nuevo PIN numérico" style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px; font-size:14px;">
+        <button class="btn-sec" onclick="updateSecurityPin()">Guardar PIN</button>
+      </div>
+    </div>
   </div>
 
-  <!-- VISTA 4: HISTORIAL & ANÁLISIS PC -->
+  <!-- VISTA 4: HISTORIAL & ANÁLISIS PC + GITHUB SYNC -->
   <div id="view-history" class="view">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
       <h2>Historial Completo & Análisis (PC)</h2>
-      <button class="btn-sec" style="background:#e8f5e9; border-color:#c8e6c9;" onclick="exportDataCSV(true)">📊 Descargar Dataset Completo (CSV)</button>
+      <div style="display:flex; gap:6px;">
+        <button class="btn-sec" style="background:#e8f5e9; border-color:#c8e6c9;" onclick="exportDataCSV(true)">📥 Descargar CSV</button>
+        <button class="btn-sec" style="background:#f3e8ff; border-color:#d8b4fe; color:#6b21a8;" onclick="openGitHubSyncModal()">🐙 Enviar a Repo GitHub</button>
+      </div>
     </div>
 
     <div style="background:#fff; border:1px solid var(--border); border-radius:12px; padding:10px; margin-bottom:14px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
@@ -487,6 +527,32 @@
     </div>
   </div>
 
+  <!-- MODAL DE SINCRONIZACIÓN AUTOMÁTICA CON GITHUB -->
+  <div class="modal-overlay" id="modal-github">
+    <div class="modal-card">
+      <h3>
+        <span>🐙 Sincronizar Dataset a GitHub</span>
+        <span style="cursor:pointer;" onclick="closeModal('modal-github')">✕</span>
+      </h3>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:8px;">Guarda todas las ventas como un commit en tu repositorio para tener respaldo en la nube y entrenar tu bot.</p>
+      
+      <label>Repositorio (ej. Dimart-prog/redonda-pos):</label>
+      <input type="text" id="gh-repo" value="Dimart-prog/redonda-pos">
+
+      <label>Ruta del archivo (se creará solo):</label>
+      <input type="text" id="gh-path" value="data/ventas.csv">
+
+      <label>GitHub Personal Access Token (con permiso 'repo'):</label>
+      <input type="password" id="gh-token" placeholder="ghp_...">
+      <small style="font-size:10px; color:var(--muted); display:block; margin-top:2px;">Se guardará localmente en este navegador para que no lo vuelvas a escribir.</small>
+
+      <div class="modal-actions">
+        <button class="btn-sec" style="flex:1;" onclick="closeModal('modal-github')">Cancelar</button>
+        <button class="btn-action" style="flex:1; padding:10px; background:#6b21a8;" onclick="commitDataToGitHub()">Hacer Commit</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // CONFIGURACIÓN DE FIREBASE
     const firebaseConfig = {
@@ -509,7 +575,9 @@
       }
     } catch(e) { console.warn("Modo Local:", e); }
 
-    let packInventory = JSON.parse(localStorage.getItem('pos_pack_v11')) || {
+    let currentPin = localStorage.getItem('pos_master_pin') || "1234";
+
+    let packInventory = JSON.parse(localStorage.getItem('pos_pack_v12')) || {
       "bolsa_25": { name: 'Bolsa #25', type: 'pack', cost: 0.20, stock: 100, usedToday: 0, quick: true },
       "bolsa_10": { name: 'Bolsa #10', type: 'pack', cost: 0.15, stock: 100, usedToday: 0, quick: false },
       "bolsa_2": { name: 'Bolsa #2', type: 'pack', cost: 0.10, stock: 100, usedToday: 0, quick: true },
@@ -523,7 +591,7 @@
       "cucharitas": { name: 'Cucharita', type: 'pack', cost: 0.05, stock: 100, usedToday: 0, quick: true }
     };
 
-    let catalog = JSON.parse(localStorage.getItem('pos_catalog_v11')) || [
+    let catalog = JSON.parse(localStorage.getItem('pos_catalog_v12')) || [
       { id: 'p1', name: 'Dona Chocolate', type: 'unit', cost: 1.50, price: 3.50, initialBatch: 15, currentStock: 15 },
       { id: 'p2', name: 'Dona Maracuyá', type: 'unit', cost: 1.60, price: 4.00, initialBatch: 10, currentStock: 10 },
       { id: 'p3', name: 'Dona Manjar Blanco', type: 'unit', cost: 1.40, price: 3.50, initialBatch: 15, currentStock: 15 },
@@ -541,32 +609,132 @@
       }
     ];
 
-    let sales = JSON.parse(localStorage.getItem('pos_sales_v11')) || [];
-    let closedDays = JSON.parse(localStorage.getItem('pos_closed_days_v11')) || [];
+    let sales = JSON.parse(localStorage.getItem('pos_sales_v12')) || [];
+    let closedDays = JSON.parse(localStorage.getItem('pos_closed_days_v12')) || [];
     let currentCart = {};
     let currentOrderPacks = {};
     let selectedPayMethod = 'Efectivo';
     let tempMermasToClose = [];
 
-    function init() {
+    // --- PROTECCIÓN OFFLINE / ONLINE ---
+    let isDeviceOnline = navigator.onLine;
+
+    function updateNetworkStatus() {
       const statusEl = document.getElementById('cloud-status');
-      if (isFirebaseReady) {
-        statusEl.innerText = "☁️ Sincronizado";
-        db.ref('catalog').on('value', snap => { if(snap.val()) { catalog = snap.val(); renderAll(); } });
-        db.ref('sales').on('value', snap => { if(snap.val()) { sales = snap.val(); renderAll(); } });
-        db.ref('packInventory').on('value', snap => { if(snap.val()) { packInventory = snap.val(); renderAll(); } });
-        db.ref('closedDays').on('value', snap => { if(snap.val()) { closedDays = snap.val(); renderAll(); } });
+      isDeviceOnline = navigator.onLine;
+      if (isDeviceOnline) {
+        statusEl.className = "badge-status badge-online";
+        statusEl.innerText = "☁️ En Línea";
+        // Cuando vuelve internet, empujamos el estado local más reciente a Firebase
+        pushLocalStateToFirebase();
       } else {
-        statusEl.innerText = "● Modo Local";
+        statusEl.className = "badge-status badge-offline";
+        statusEl.innerText = "⚡ Modo Offline";
+      }
+    }
+
+    window.addEventListener('online', updateNetworkStatus);
+    window.addEventListener('offline', updateNetworkStatus);
+
+    function init() {
+      checkAuth();
+      updateNetworkStatus();
+
+      if (isFirebaseReady) {
+        // Escucha de PIN
+        db.ref('settings/pin').on('value', snap => {
+          if (snap.val()) {
+            currentPin = snap.val().toString();
+            localStorage.setItem('pos_master_pin', currentPin);
+          }
+        });
+
+        // Escucha protegida de Firebase (no pisa si acabamos de hacer cambios locales offline)
+        db.ref('catalog').on('value', snap => {
+          if (snap.val() && isDeviceOnline) {
+            catalog = snap.val();
+            localStorage.setItem('pos_catalog_v12', JSON.stringify(catalog));
+            renderAll();
+          }
+        });
+
+        db.ref('sales').on('value', snap => {
+          if (snap.val() && isDeviceOnline) {
+            sales = snap.val();
+            localStorage.setItem('pos_sales_v12', JSON.stringify(sales));
+            renderAll();
+          }
+        });
+
+        db.ref('packInventory').on('value', snap => {
+          if (snap.val() && isDeviceOnline) {
+            packInventory = snap.val();
+            localStorage.setItem('pos_pack_v12', JSON.stringify(packInventory));
+            renderAll();
+          }
+        });
+
+        db.ref('closedDays').on('value', snap => {
+          if (snap.val() && isDeviceOnline) {
+            closedDays = snap.val();
+            localStorage.setItem('pos_closed_days_v12', JSON.stringify(closedDays));
+            renderAll();
+          }
+        });
       }
 
       window.addEventListener('keydown', e => {
         if (e.key === 'Escape') {
-          document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+          document.querySelectorAll('.modal-overlay:not(#modal-auth)').forEach(m => m.classList.remove('active'));
         }
       });
 
       renderAll();
+    }
+
+    function checkAuth() {
+      const isLogged = localStorage.getItem('pos_authenticated');
+      const modalAuth = document.getElementById('modal-auth');
+      if (isLogged === 'true') {
+        modalAuth.classList.remove('active');
+      } else {
+        modalAuth.classList.add('active');
+        document.getElementById('auth-pin-input').focus();
+      }
+    }
+
+    function verifyPin() {
+      const input = document.getElementById('auth-pin-input').value.trim();
+      const err = document.getElementById('auth-error-msg');
+      if (input === currentPin) {
+        localStorage.setItem('pos_authenticated', 'true');
+        document.getElementById('modal-auth').classList.remove('active');
+        err.style.display = 'none';
+      } else {
+        err.style.display = 'block';
+        document.getElementById('auth-pin-input').value = '';
+      }
+    }
+
+    function logoutPOS() {
+      if (confirm("¿Bloquear y cerrar sesión en este dispositivo?")) {
+        localStorage.removeItem('pos_authenticated');
+        document.getElementById('modal-auth').classList.add('active');
+        document.getElementById('auth-pin-input').value = '';
+      }
+    }
+
+    function updateSecurityPin() {
+      const newP = document.getElementById('new-pin-input').value.trim();
+      if (newP.length < 4) { alert("El PIN debe tener al menos 4 dígitos."); return; }
+
+      currentPin = newP;
+      localStorage.setItem('pos_master_pin', newP);
+      if (isFirebaseReady && isDeviceOnline) {
+        db.ref('settings/pin').set(newP);
+      }
+      alert(`✅ Contraseña/PIN actualizada con éxito a: ${newP}`);
+      document.getElementById('new-pin-input').value = '';
     }
 
     function renderAll() {
@@ -578,19 +746,24 @@
       populateCupDropdown();
     }
 
+    // Guardado seguro: Primero local, luego Firebase
     function saveState() {
-      localStorage.setItem('pos_catalog_v11', JSON.stringify(catalog));
-      localStorage.setItem('pos_sales_v11', JSON.stringify(sales));
-      localStorage.setItem('pos_pack_v11', JSON.stringify(packInventory));
-      localStorage.setItem('pos_closed_days_v11', JSON.stringify(closedDays));
+      localStorage.setItem('pos_catalog_v12', JSON.stringify(catalog));
+      localStorage.setItem('pos_sales_v12', JSON.stringify(sales));
+      localStorage.setItem('pos_pack_v12', JSON.stringify(packInventory));
+      localStorage.setItem('pos_closed_days_v12', JSON.stringify(closedDays));
 
-      if (isFirebaseReady) {
+      pushLocalStateToFirebase();
+      renderAll();
+    }
+
+    function pushLocalStateToFirebase() {
+      if (isFirebaseReady && navigator.onLine) {
         db.ref('catalog').set(catalog);
         db.ref('sales').set(sales);
         db.ref('packInventory').set(packInventory);
         db.ref('closedDays').set(closedDays);
       }
-      renderAll();
     }
 
     // --- POS ---
@@ -922,7 +1095,9 @@
       currentCart = {};
       currentOrderPacks = {};
       saveState();
-      alert(`✅ Venta guardada: S/ ${totalSale.toFixed(2)} (${payData.detail})`);
+      
+      const offlineMsg = !navigator.onLine ? " (Guardado en celular ⚡)" : "";
+      alert(`✅ Venta registrada: S/ ${totalSale.toFixed(2)} (${payData.detail})${offlineMsg}`);
     }
 
     function deleteSale(saleId) {
@@ -932,13 +1107,11 @@
 
       if (!confirm(`¿Eliminar venta de ${s.time} (S/ ${s.total.toFixed(2)}) y restaurar su stock?`)) return;
 
-      // Devolver stock de alimentos
       s.items.forEach(item => {
         const prod = catalog.find(p => p.id === item.prodId || item.name.includes(p.name));
         if (prod) prod.currentStock += item.qty;
       });
 
-      // Devolver stock de empaques
       if (s.packs) {
         Object.keys(s.packs).forEach(k => {
           if (packInventory[k]) {
@@ -1125,7 +1298,7 @@
       `;
 
       if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; color:var(--muted); padding:15px;">No hay registros con este filtro.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; color:var(--muted); padding:15px;">No hay registros para este filtro.</td></tr>';
       } else {
         tbody.innerHTML = filtered.map(s => {
           const itemsStr = s.items.map(i => `${i.qty}x ${i.name}`).join(', ');
@@ -1215,21 +1388,79 @@
 
       if (dataToExport.length === 0) { alert("No hay datos para exportar."); return; }
 
-      let csv = "ID,FECHA,HORA,METODO_PAGO,ITEMS_VENDIDOS,EMPAQUES_USADOS,TOTAL_COBRADO_PEN,COSTO_DONAS_PEN,COSTO_BEBIDAS_PEN,FUGA_LATTE_PEN,COSTO_EMPAQUES_PEN,GANANCIA_NETA_PEN\n";
-
-      dataToExport.forEach(s => {
-        const items = s.items.map(i => `${i.qty}x ${i.name}`).join(' | ');
-        const packs = s.packs ? Object.keys(s.packs).filter(k => s.packs[k] > 0).map(k => `${s.packs[k]} ${k}`).join(' | ') : 'NINGUNO';
-        const methodStr = s.payData ? s.payData.detail : s.method;
-
-        csv += `"${s.id}","${s.date}","${s.time}","${methodStr}","${items}","${packs}",${s.total.toFixed(2)},${(s.donasCost||0).toFixed(2)},${(s.liquidCost||0).toFixed(2)},${(s.latteCost||0).toFixed(2)},${(s.packCost||0).toFixed(2)},${s.profit.toFixed(2)}\n`;
-      });
-
+      let csv = generateCSVString(dataToExport);
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
       link.download = exportAll ? `dataset_redonda_completo_${today}.csv` : `ventas_redonda_${today}.csv`;
       link.click();
+    }
+
+    function generateCSVString(dataArr) {
+      let csv = "ID,FECHA,HORA,METODO_PAGO,ITEMS_VENDIDOS,EMPAQUES_USADOS,TOTAL_COBRADO_PEN,COSTO_DONAS_PEN,COSTO_BEBIDAS_PEN,FUGA_LATTE_PEN,COSTO_EMPAQUES_PEN,GANANCIA_NETA_PEN\n";
+      dataArr.forEach(s => {
+        const items = s.items.map(i => `${i.qty}x ${i.name}`).join(' | ');
+        const packs = s.packs ? Object.keys(s.packs).filter(k => s.packs[k] > 0).map(k => `${s.packs[k]} ${k}`).join(' | ') : 'NINGUNO';
+        const methodStr = s.payData ? s.payData.detail : s.method;
+        csv += `"${s.id}","${s.date}","${s.time}","${methodStr}","${items}","${packs}",${s.total.toFixed(2)},${(s.donasCost||0).toFixed(2)},${(s.liquidCost||0).toFixed(2)},${(s.latteCost||0).toFixed(2)},${(s.packCost||0).toFixed(2)},${s.profit.toFixed(2)}\n`;
+      });
+      return csv;
+    }
+
+    // --- GITHUB SYNC ---
+    function openGitHubSyncModal() {
+      document.getElementById('gh-token').value = localStorage.getItem('gh_sync_token') || '';
+      document.getElementById('modal-github').classList.add('active');
+    }
+
+    async function commitDataToGitHub() {
+      const repo = document.getElementById('gh-repo').value.trim();
+      const path = document.getElementById('gh-path').value.trim();
+      const token = document.getElementById('gh-token').value.trim();
+
+      if (!token) { alert("Ingresa un Personal Access Token de GitHub con permiso repo."); return; }
+      localStorage.setItem('gh_sync_token', token);
+
+      if (sales.length === 0) { alert("No hay ventas registradas para subir."); return; }
+
+      const csvContent = generateCSVString(sales);
+      const contentBase64 = btoa(unescape(encodeURIComponent(csvContent)));
+
+      try {
+        const getUrl = `https://api.github.com/repos/${repo}/contents/${path}`;
+        let sha = null;
+        const checkRes = await fetch(getUrl, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json' }
+        });
+        if (checkRes.ok) {
+          const fileData = await checkRes.json();
+          sha = fileData.sha;
+        }
+
+        const putRes = await fetch(getUrl, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message: `Actualización dataset ventas: ${new Date().toISOString()}`,
+            content: contentBase64,
+            sha: sha || undefined
+          })
+        });
+
+        if (putRes.ok) {
+          alert(`🎉 ¡Éxito! Dataset actualizado en GitHub en ${path}`);
+          closeModal('modal-github');
+        } else {
+          const errData = await putRes.json();
+          alert(`Error al subir a GitHub: ${errData.message}`);
+        }
+      } catch (err) {
+        alert(`Error de conexión con GitHub: ${err.message}`);
+      }
     }
 
     // --- GESTIÓN DE PRODUCTOS ---

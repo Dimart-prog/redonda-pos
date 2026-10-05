@@ -186,7 +186,7 @@
 </head>
 <body>
 
-  <!-- MODAL DE ACCESO / BLOQUEO POR CONTRASEÑA -->
+  <!-- MODAL DE ACCESO / BLOQUEO POR PIN -->
   <div class="modal-overlay active" id="modal-auth" style="z-index: 9999; background: var(--matcha);">
     <div class="modal-card" style="text-align: center; max-width: 330px;">
       <span style="font-size: 38px;">🔒</span>
@@ -328,11 +328,15 @@
     <button class="btn-close-day" onclick="openCloseDayModal()">🔒 Cerrar Jornada / Registrar Mermas y Resetear</button>
   </div>
 
-  <!-- VISTA 3: STOCK & INVENTARIO + AJUSTES -->
+  <!-- VISTA 3: STOCK & INVENTARIO -->
   <div id="view-manage" class="view">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px; flex-wrap:wrap; gap:8px;">
       <h2>Producción del Día</h2>
-      <button class="btn-sec" onclick="openProductModal(null)">+ Agregar Producto</button>
+      <div style="display:flex; gap:6px;">
+        <button class="btn-sec" onclick="forceDownloadFromCloud()" title="Jalar lo último guardado en Firebase">☁️ Cargar de Nube</button>
+        <button class="btn-sec" style="background:#e8f5e9; border-color:#c8e6c9;" onclick="forcePushToCloud()" title="Guardar todo en Firebase">⬆️ Subir a Nube</button>
+        <button class="btn-sec" onclick="openProductModal(null)">+ Agregar Producto</button>
+      </div>
     </div>
 
     <div id="products-manage-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
@@ -354,7 +358,7 @@
     </div>
   </div>
 
-  <!-- VISTA 4: HISTORIAL & ANÁLISIS PC + GITHUB SYNC -->
+  <!-- VISTA 4: HISTORIAL & ANÁLISIS PC -->
   <div id="view-history" class="view">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
       <h2>Historial Completo & Análisis (PC)</h2>
@@ -432,16 +436,16 @@
       </select>
 
       <label>Nombre del Producto:</label>
-      <input type="text" id="m-prod-name" placeholder="ej. Chocolatada Caliente">
+      <input type="text" id="m-prod-name" placeholder="ej. Chocolate Pastelero">
 
       <label>Precio de Venta al Público (S/):</label>
-      <input type="number" step="0.10" id="m-prod-price" placeholder="2.50">
+      <input type="number" step="0.10" id="m-prod-price" placeholder="7.00">
 
       <div id="m-unit-fields">
         <label>Costo de Preparación Unitario (S/):</label>
-        <input type="number" step="0.10" id="m-prod-cost" placeholder="1.50">
+        <input type="number" step="0.01" id="m-prod-cost" placeholder="6.27">
         <label>Cantidad Preparada Hoy:</label>
-        <input type="number" id="m-prod-stock" placeholder="15">
+        <input type="number" id="m-prod-stock" placeholder="0">
       </div>
 
       <div id="m-liquid-fields" style="display:none;">
@@ -534,7 +538,7 @@
         <span>🐙 Sincronizar Dataset a GitHub</span>
         <span style="cursor:pointer;" onclick="closeModal('modal-github')">✕</span>
       </h3>
-      <p style="font-size:12px; color:var(--muted); margin-bottom:8px;">Guarda todas las ventas como un commit en tu repositorio para tener respaldo en la nube y entrenar tu bot.</p>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:8px;">Guarda todas las ventas como un commit en tu repositorio.</p>
       
       <label>Repositorio (ej. Dimart-prog/redonda-pos):</label>
       <input type="text" id="gh-repo" value="Dimart-prog/redonda-pos">
@@ -544,7 +548,7 @@
 
       <label>GitHub Personal Access Token (con permiso 'repo'):</label>
       <input type="password" id="gh-token" placeholder="ghp_...">
-      <small style="font-size:10px; color:var(--muted); display:block; margin-top:2px;">Se guardará localmente en este navegador para que no lo vuelvas a escribir.</small>
+      <small style="font-size:10px; color:var(--muted); display:block; margin-top:2px;">Se guardará localmente en este navegador.</small>
 
       <div class="modal-actions">
         <button class="btn-sec" style="flex:1;" onclick="closeModal('modal-github')">Cancelar</button>
@@ -577,7 +581,26 @@
 
     let currentPin = localStorage.getItem('pos_master_pin') || "1234";
 
-    let packInventory = JSON.parse(localStorage.getItem('pos_pack_v12')) || {
+    // CATÁLOGO BASE DE SEGURIDAD (CON LOS NOMBRES EXACTOS DE TU PRIMA)
+    const DEFAULT_CATALOG = [
+      { id: 'p1', name: 'Chocolate Pastelero', type: 'unit', cost: 6.27, price: 7.00, initialBatch: 0, currentStock: 0 },
+      { id: 'p2', name: 'Dona Maracuyá', type: 'unit', cost: 1.60, price: 4.00, initialBatch: 0, currentStock: 0 },
+      { id: 'p3', name: 'Dona Manjar Blanco', type: 'unit', cost: 1.40, price: 3.50, initialBatch: 0, currentStock: 0 },
+      { 
+        id: 'p4', name: 'Chocolate Francés', type: 'liquid',
+        totalLiters: 1.8, cupMl: 180, batchCost: 5.00,
+        cupKey: 'vaso_9oz',
+        liquidCostPerCup: 0.50,
+        cost: 0.85,
+        price: 7.00,
+        hasLatteOption: true,
+        latteCostExtra: 0.30,
+        lattePriceExtra: 0.00,
+        initialBatch: 10, currentStock: 10
+      }
+    ];
+
+    const DEFAULT_PACKS = {
       "bolsa_25": { name: 'Bolsa #25', type: 'pack', cost: 0.20, stock: 100, usedToday: 0, quick: true },
       "bolsa_10": { name: 'Bolsa #10', type: 'pack', cost: 0.15, stock: 100, usedToday: 0, quick: false },
       "bolsa_2": { name: 'Bolsa #2', type: 'pack', cost: 0.10, stock: 100, usedToday: 0, quick: true },
@@ -591,32 +614,16 @@
       "cucharitas": { name: 'Cucharita', type: 'pack', cost: 0.05, stock: 100, usedToday: 0, quick: true }
     };
 
-    let catalog = JSON.parse(localStorage.getItem('pos_catalog_v12')) || [
-      { id: 'p1', name: 'Dona Chocolate', type: 'unit', cost: 1.50, price: 3.50, initialBatch: 15, currentStock: 15 },
-      { id: 'p2', name: 'Dona Maracuyá', type: 'unit', cost: 1.60, price: 4.00, initialBatch: 10, currentStock: 10 },
-      { id: 'p3', name: 'Dona Manjar Blanco', type: 'unit', cost: 1.40, price: 3.50, initialBatch: 15, currentStock: 15 },
-      { 
-        id: 'p4', name: 'Chocolatada Caliente', type: 'liquid',
-        totalLiters: 1.8, cupMl: 180, batchCost: 9.00,
-        cupKey: 'vaso_9oz',
-        liquidCostPerCup: 0.90,
-        cost: 1.25,
-        price: 2.50,
-        hasLatteOption: true,
-        latteCostExtra: 0.30,
-        lattePriceExtra: 0.00,
-        initialBatch: 10, currentStock: 10
-      }
-    ];
+    let catalog = JSON.parse(localStorage.getItem('pos_catalog_store')) || DEFAULT_CATALOG;
+    let packInventory = JSON.parse(localStorage.getItem('pos_pack_store')) || DEFAULT_PACKS;
+    let sales = JSON.parse(localStorage.getItem('pos_sales_store')) || [];
+    let closedDays = JSON.parse(localStorage.getItem('pos_closed_days_store')) || [];
 
-    let sales = JSON.parse(localStorage.getItem('pos_sales_v12')) || [];
-    let closedDays = JSON.parse(localStorage.getItem('pos_closed_days_v12')) || [];
     let currentCart = {};
     let currentOrderPacks = {};
     let selectedPayMethod = 'Efectivo';
     let tempMermasToClose = [];
 
-    // --- PROTECCIÓN OFFLINE / ONLINE ---
     let isDeviceOnline = navigator.onLine;
 
     function updateNetworkStatus() {
@@ -625,8 +632,6 @@
       if (isDeviceOnline) {
         statusEl.className = "badge-status badge-online";
         statusEl.innerText = "☁️ En Línea";
-        // Cuando vuelve internet, empujamos el estado local más reciente a Firebase
-        pushLocalStateToFirebase();
       } else {
         statusEl.className = "badge-status badge-offline";
         statusEl.innerText = "⚡ Modo Offline";
@@ -640,8 +645,8 @@
       checkAuth();
       updateNetworkStatus();
 
+      // INICIO INTELIGENTE: Firebase manda primero
       if (isFirebaseReady) {
-        // Escucha de PIN
         db.ref('settings/pin').on('value', snap => {
           if (snap.val()) {
             currentPin = snap.val().toString();
@@ -649,37 +654,34 @@
           }
         });
 
-        // Escucha protegida de Firebase (no pisa si acabamos de hacer cambios locales offline)
+        // Cargar lo que existe en Firebase primero (no sobreescribir)
+        db.ref().once('value', snap => {
+          const cloudData = snap.val();
+          if (cloudData && cloudData.catalog && cloudData.catalog.length > 0) {
+            catalog = cloudData.catalog;
+            if (cloudData.packInventory) packInventory = cloudData.packInventory;
+            if (cloudData.sales) sales = cloudData.sales;
+            if (cloudData.closedDays) closedDays = cloudData.closedDays;
+            persistLocal();
+          } else {
+            // Solo si Firebase está completamente vacío, subimos el catálogo
+            forcePushToCloud();
+          }
+          renderAll();
+        });
+
+        // Escuchar cambios de otros dispositivos en tiempo real
         db.ref('catalog').on('value', snap => {
-          if (snap.val() && isDeviceOnline) {
-            catalog = snap.val();
-            localStorage.setItem('pos_catalog_v12', JSON.stringify(catalog));
-            renderAll();
-          }
+          if (snap.val() && isDeviceOnline) { catalog = snap.val(); persistLocal(); renderPOS(); renderManagement(); }
         });
-
         db.ref('sales').on('value', snap => {
-          if (snap.val() && isDeviceOnline) {
-            sales = snap.val();
-            localStorage.setItem('pos_sales_v12', JSON.stringify(sales));
-            renderAll();
-          }
+          if (snap.val() && isDeviceOnline) { sales = snap.val(); persistLocal(); renderReports(); renderHistoryTable(); }
         });
-
         db.ref('packInventory').on('value', snap => {
-          if (snap.val() && isDeviceOnline) {
-            packInventory = snap.val();
-            localStorage.setItem('pos_pack_v12', JSON.stringify(packInventory));
-            renderAll();
-          }
+          if (snap.val() && isDeviceOnline) { packInventory = snap.val(); persistLocal(); renderManagement(); }
         });
-
         db.ref('closedDays').on('value', snap => {
-          if (snap.val() && isDeviceOnline) {
-            closedDays = snap.val();
-            localStorage.setItem('pos_closed_days_v12', JSON.stringify(closedDays));
-            renderAll();
-          }
+          if (snap.val() && isDeviceOnline) { closedDays = snap.val(); persistLocal(); renderHistoryTable(); }
         });
       }
 
@@ -746,24 +748,50 @@
       populateCupDropdown();
     }
 
-    // Guardado seguro: Primero local, luego Firebase
-    function saveState() {
-      localStorage.setItem('pos_catalog_v12', JSON.stringify(catalog));
-      localStorage.setItem('pos_sales_v12', JSON.stringify(sales));
-      localStorage.setItem('pos_pack_v12', JSON.stringify(packInventory));
-      localStorage.setItem('pos_closed_days_v12', JSON.stringify(closedDays));
-
-      pushLocalStateToFirebase();
-      renderAll();
+    function persistLocal() {
+      localStorage.setItem('pos_catalog_store', JSON.stringify(catalog));
+      localStorage.setItem('pos_sales_store', JSON.stringify(sales));
+      localStorage.setItem('pos_pack_store', JSON.stringify(packInventory));
+      localStorage.setItem('pos_closed_days_store', JSON.stringify(closedDays));
     }
 
-    function pushLocalStateToFirebase() {
-      if (isFirebaseReady && navigator.onLine) {
+    function saveState() {
+      persistLocal();
+      if (isFirebaseReady && isDeviceOnline) {
         db.ref('catalog').set(catalog);
         db.ref('sales').set(sales);
         db.ref('packInventory').set(packInventory);
         db.ref('closedDays').set(closedDays);
       }
+      renderAll();
+    }
+
+    // --- ACCIONES FORZADAS NUBE ---
+    function forcePushToCloud() {
+      if (!isFirebaseReady) { alert("Firebase no configurado."); return; }
+      db.ref('catalog').set(catalog);
+      db.ref('packInventory').set(packInventory);
+      db.ref('sales').set(sales);
+      db.ref('closedDays').set(closedDays);
+      alert("✅ ¡Todo respaldado con éxito en Firebase!");
+    }
+
+    function forceDownloadFromCloud() {
+      if (!isFirebaseReady) { alert("Firebase no configurado."); return; }
+      db.ref().once('value', snap => {
+        const d = snap.val();
+        if (d && d.catalog) {
+          catalog = d.catalog;
+          if (d.packInventory) packInventory = d.packInventory;
+          if (d.sales) sales = d.sales;
+          if (d.closedDays) closedDays = d.closedDays;
+          persistLocal();
+          renderAll();
+          alert("✅ ¡Datos actualizados desde la nube con éxito!");
+        } else {
+          alert("No hay datos guardados aún en Firebase.");
+        }
+      });
     }
 
     // --- POS ---

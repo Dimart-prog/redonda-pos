@@ -494,21 +494,31 @@
       const keys = Object.keys(basket);
       if (keys.length === 0) { alert("Tu canasta está vacía."); return; }
 
-      // Texto limpio con codificación compatible para evitar caracteres rotos ()
-      let text = "*Hola !Redonda!* 👋 Quisiera separar este pedido:\n\n";
       let total = 0;
+      let lineasPedido = "";
+
       keys.forEach(id => {
         const prod = catalog.find(p => p.id === id);
         const qty = basket[id];
         const sub = prod.price * qty;
         total += sub;
-        text += `• *${qty}x* ${prod.name} (S/ ${sub.toFixed(2)})\n`;
+        const icon = prod.type === 'liquid' ? '☕' : '🍩';
+        lineasPedido += `${icon} *${qty}x* ${prod.name} -> S/ ${sub.toFixed(2)}\n`;
       });
-      text += `\n*Total a pagar: S/ ${total.toFixed(2)}*\n¿Aún tienes disponible para recoger en el carrito?`;
-      window.open(`https://wa.me/${WHATSAPP_NUM}?text=${encodeURIComponent(text)}`, '_blank');
-    }
 
-    applyMenuTexts();
-  </script>
-</body>
-</html>
+      // Mensaje con formato limpio y elegante para WhatsApp
+      const mensaje = 
+`✨ *¡HOLA !REDONDA!* ✨
+Quisiera separar este pedido del carrito:
+
+${lineasPedido}
+----------------------------------
+💰 *TOTAL A PAGAR: S/ ${total.toFixed(2)}*
+----------------------------------
+
+📍 ¿Aún tienes disponible para pasar a recoger? ¡Muchas gracias! 🙌`;
+
+      // Enlace universal compatible móvil y PC
+      const url = `https://api.whatsapp.com/send?phone=${WHATSAPP_NUM}&text=${encodeURIComponent(mensaje)}`;
+      window.open(url, '_blank');
+    }

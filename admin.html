@@ -178,7 +178,7 @@
     }
     .modal-card h3 { font-size: 16px; color: var(--text); margin-bottom: 12px; display: flex; justify-content: space-between; }
     .modal-card label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin: 8px 0 3px 0; }
-    .modal-card input, .modal-card select {
+    .modal-card input, .modal-card select, .modal-card textarea {
       width: 100%; padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px;
     }
     .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
@@ -328,7 +328,7 @@
     <button class="btn-close-day" onclick="openCloseDayModal()">🔒 Cerrar Jornada / Registrar Mermas y Resetear</button>
   </div>
 
-  <!-- VISTA 3: STOCK & INVENTARIO -->
+  <!-- VISTA 3: STOCK & INVENTARIO + AJUSTES -->
   <div id="view-manage" class="view">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px; flex-wrap:wrap; gap:8px;">
       <h2>Producción del Día</h2>
@@ -347,8 +347,32 @@
     </div>
     <div id="pack-manage-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
 
+    <!-- NUEVO: PERSONALIZACIÓN DEL MENÚ PÚBLICO DE CLIENTES -->
+    <div style="background:#fff; border:1.5px solid var(--border); border-radius:14px; padding:14px; margin-top:20px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h3 style="font-size:15px; color:var(--matcha-dark);">🎨 Personalizar Textos del Menú Público (QR)</h3>
+        <button class="btn-sec" style="background:#e8f5e9; border-color:#c8e6c9;" onclick="saveMenuConfig()">💾 Guardar Textos</button>
+      </div>
+      <p style="font-size:11px; color:var(--muted); margin-bottom:10px;">Los cambios se verán al instante en los celulares de los clientes.</p>
+
+      <label style="font-size:11px; font-weight:700;">Subtítulo Principal:</label>
+      <input type="text" id="cfg-subtitle" style="margin-bottom:8px;" placeholder="Donas Artesanales & Bebidas">
+
+      <label style="font-size:11px; font-weight:700;">Estado / Ubicación en el Carrito:</label>
+      <input type="text" id="cfg-status-text" style="margin-bottom:8px;" placeholder="Atendiendo en el Carrito (o ej. Frente a Plaza Vea)">
+
+      <label style="font-size:11px; font-weight:700;">Anuncio o Promo del Día (Opcional, dejar vacío para ocultar):</label>
+      <input type="text" id="cfg-announcement" style="margin-bottom:8px;" placeholder="ej. ¡Por la compra de 4 donas llévate un chocolate caliente!">
+
+      <label style="font-size:11px; font-weight:700;">Título de Sección del Catálogo:</label>
+      <input type="text" id="cfg-section-title" style="margin-bottom:8px;" placeholder="Sabores Disponibles Hoy:">
+
+      <label style="font-size:11px; font-weight:700;">Frase del Pie de Página:</label>
+      <input type="text" id="cfg-footer-text" placeholder="¡Hechas a mano con amor todos los días! 🍩">
+    </div>
+
     <!-- CAMBIAR CONTRASEÑA -->
-    <div style="background:#fff; border:1px solid var(--border); border-radius:12px; padding:12px; margin-top:20px;">
+    <div style="background:#fff; border:1px solid var(--border); border-radius:12px; padding:12px; margin-top:16px;">
       <h3 style="font-size:14px; margin-bottom:6px;">🔐 Cambiar Contraseña / PIN de Acceso</h3>
       <p style="font-size:11px; color:var(--muted); margin-bottom:8px;">Se actualizará en la nube y servirá para todos tus dispositivos.</p>
       <div style="display:flex; gap:8px;">
@@ -558,7 +582,6 @@
   </div>
 
   <script>
-    // CONFIGURACIÓN DE FIREBASE
     const firebaseConfig = {
       apiKey: "AIzaSyAiUpu5hzBgu0rg7Wj-ny67iv27t1iYH98",
       authDomain: "redonda-donas.firebaseapp.com",
@@ -581,7 +604,6 @@
 
     let currentPin = localStorage.getItem('pos_master_pin') || "1234";
 
-    // CATÁLOGO BASE DE SEGURIDAD (CON LOS NOMBRES EXACTOS DE TU PRIMA)
     const DEFAULT_CATALOG = [
       { id: 'p1', name: 'Chocolate Pastelero', type: 'unit', cost: 6.27, price: 7.00, initialBatch: 0, currentStock: 0 },
       { id: 'p2', name: 'Dona Maracuyá', type: 'unit', cost: 1.60, price: 4.00, initialBatch: 0, currentStock: 0 },
@@ -612,6 +634,14 @@
       "pirotin_9": { name: 'Pirotín #9', type: 'pack', cost: 0.05, stock: 200, usedToday: 0, quick: true },
       "vaso_9oz": { name: 'Vaso 9oz + Tapa', type: 'cup', cost: 0.35, stock: 80, usedToday: 0, quick: false },
       "cucharitas": { name: 'Cucharita', type: 'pack', cost: 0.05, stock: 100, usedToday: 0, quick: true }
+    };
+
+    let menuConfig = {
+      subtitle: "Donas Artesanales & Bebidas",
+      statusText: "Atendiendo en el Carrito",
+      sectionTitle: "Sabores Disponibles Hoy:",
+      announcement: "",
+      footerText: "¡Hechas a mano con amor todos los días! 🍩"
     };
 
     let catalog = JSON.parse(localStorage.getItem('pos_catalog_store')) || DEFAULT_CATALOG;
@@ -645,7 +675,6 @@
       checkAuth();
       updateNetworkStatus();
 
-      // INICIO INTELIGENTE: Firebase manda primero
       if (isFirebaseReady) {
         db.ref('settings/pin').on('value', snap => {
           if (snap.val()) {
@@ -654,7 +683,13 @@
           }
         });
 
-        // Cargar lo que existe en Firebase primero (no sobreescribir)
+        db.ref('settings/menuConfig').on('value', snap => {
+          if (snap.val()) {
+            menuConfig = { ...menuConfig, ...snap.val() };
+            populateMenuConfigInputs();
+          }
+        });
+
         db.ref().once('value', snap => {
           const cloudData = snap.val();
           if (cloudData && cloudData.catalog && cloudData.catalog.length > 0) {
@@ -662,15 +697,17 @@
             if (cloudData.packInventory) packInventory = cloudData.packInventory;
             if (cloudData.sales) sales = cloudData.sales;
             if (cloudData.closedDays) closedDays = cloudData.closedDays;
+            if (cloudData.settings && cloudData.settings.menuConfig) {
+              menuConfig = { ...menuConfig, ...cloudData.settings.menuConfig };
+            }
             persistLocal();
           } else {
-            // Solo si Firebase está completamente vacío, subimos el catálogo
             forcePushToCloud();
           }
           renderAll();
+          populateMenuConfigInputs();
         });
 
-        // Escuchar cambios de otros dispositivos en tiempo real
         db.ref('catalog').on('value', snap => {
           if (snap.val() && isDeviceOnline) { catalog = snap.val(); persistLocal(); renderPOS(); renderManagement(); }
         });
@@ -692,6 +729,7 @@
       });
 
       renderAll();
+      populateMenuConfigInputs();
     }
 
     function checkAuth() {
@@ -739,6 +777,31 @@
       document.getElementById('new-pin-input').value = '';
     }
 
+    // --- PERSONALIZACIÓN MENÚ PÚBLICO ---
+    function populateMenuConfigInputs() {
+      if (!document.getElementById('cfg-subtitle')) return;
+      document.getElementById('cfg-subtitle').value = menuConfig.subtitle || '';
+      document.getElementById('cfg-status-text').value = menuConfig.statusText || '';
+      document.getElementById('cfg-announcement').value = menuConfig.announcement || '';
+      document.getElementById('cfg-section-title').value = menuConfig.sectionTitle || '';
+      document.getElementById('cfg-footer-text').value = menuConfig.footerText || '';
+    }
+
+    function saveMenuConfig() {
+      menuConfig = {
+        subtitle: document.getElementById('cfg-subtitle').value.trim(),
+        statusText: document.getElementById('cfg-status-text').value.trim(),
+        announcement: document.getElementById('cfg-announcement').value.trim(),
+        sectionTitle: document.getElementById('cfg-section-title').value.trim(),
+        footerText: document.getElementById('cfg-footer-text').value.trim()
+      };
+
+      if (isFirebaseReady && isDeviceOnline) {
+        db.ref('settings/menuConfig').set(menuConfig);
+      }
+      alert("🎉 ¡Textos del Menú Público actualizados en vivo!");
+    }
+
     function renderAll() {
       renderPOS();
       renderManagement();
@@ -766,13 +829,13 @@
       renderAll();
     }
 
-    // --- ACCIONES FORZADAS NUBE ---
     function forcePushToCloud() {
       if (!isFirebaseReady) { alert("Firebase no configurado."); return; }
       db.ref('catalog').set(catalog);
       db.ref('packInventory').set(packInventory);
       db.ref('sales').set(sales);
       db.ref('closedDays').set(closedDays);
+      db.ref('settings/menuConfig').set(menuConfig);
       alert("✅ ¡Todo respaldado con éxito en Firebase!");
     }
 
@@ -785,8 +848,10 @@
           if (d.packInventory) packInventory = d.packInventory;
           if (d.sales) sales = d.sales;
           if (d.closedDays) closedDays = d.closedDays;
+          if (d.settings && d.settings.menuConfig) menuConfig = { ...menuConfig, ...d.settings.menuConfig };
           persistLocal();
           renderAll();
+          populateMenuConfigInputs();
           alert("✅ ¡Datos actualizados desde la nube con éxito!");
         } else {
           alert("No hay datos guardados aún en Firebase.");
@@ -1361,7 +1426,7 @@
               <span style="color:var(--danger);">Pérdida Mermas: S/ ${cd.lostMoney.toFixed(2)}</span>
             </div>
             <div style="color:#64748b;">
-              ${cd.mermas && cd.mermas.length > 0 ? cd.mermas.map(m => `${m.leftQty}x${m.name}`).join(' | ') : 'Cero mermas (Todo vendido)'}
+              ${cd.mermas && cd.mermas.length > 0 ? cd.mermas.map(m => `${m.leftQty}x ${m.name}`).join(' | ') : 'Cero mermas (Todo vendido)'}
             </div>
           </div>
         `).join('');

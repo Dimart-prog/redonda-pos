@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>!Redonda - Donas Artesanales | Pedidos al Carrito</title>
   
-  <!-- Favicon con la dona original -->
   <link rel="icon" type="image/png" href="Redondah_20260723_174642_0000.png">
 
   <!-- Firebase SDK Vanilla Compatible -->
@@ -30,7 +29,6 @@
 
     body {
       background-color: var(--cream-bg);
-      /* Patrón de donas con su nombre exacto */
       background-image: linear-gradient(rgba(250, 247, 240, 0.86), rgba(250, 247, 240, 0.92)), url('Diseño sin título_20251009_113917_0000.jpg');
       background-repeat: repeat;
       background-size: 340px;
@@ -39,7 +37,6 @@
       min-height: 100vh;
     }
 
-    /* Cabecera con Marca Oficial */
     header {
       background: var(--matcha);
       color: #fff;
@@ -98,6 +95,20 @@
       box-shadow: 0 2px 6px rgba(0,0,0,0.06);
     }
 
+    /* Banner de anuncio dinámico */
+    .announcement-banner {
+      background: #fff9db;
+      border: 1.5px dashed #f59e0b;
+      color: #92400e;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 16px;
+      display: none;
+    }
+
     .container {
       max-width: 580px;
       margin: 0 auto;
@@ -121,7 +132,6 @@
       vertical-align: middle;
     }
 
-    /* Catálogo de Productos */
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -187,7 +197,6 @@
     .badge.low { background: #fff8e1; color: #f57f17; }
     .badge.zero { background: #ffebee; color: #c62828; }
 
-    /* Canasta / Pedido */
     .basket {
       background: var(--card-bg);
       backdrop-filter: blur(8px);
@@ -268,7 +277,6 @@
       transform: scale(0.98);
     }
 
-    /* Pie de página con emblema */
     footer {
       text-align: center;
       margin-top: 25px;
@@ -294,22 +302,23 @@
 
   <header>
     <div class="brand-hero">
-      <!-- Mascota original -->
       <img src="Redondah_20260723_174642_0000.png" alt="!Redonda Logo" class="brand-logo-img" onerror="this.outerHTML='<span style=\'font-size:48px;\'>🍩</span>'">
-      <!-- Letras oficiales -->
       <img src="Redondah_20251004_004120_0000.png" alt="!Redonda" class="brand-letters-img" onerror="this.outerHTML='<h1 style=\'font-size:26px; font-weight:900;\'>!Redonda</h1>'">
-      <p>Donas Artesanales & Bebidas</p>
+      <p id="ui-subtitle">Donas Artesanales & Bebidas</p>
       <span class="status-pill">
         <img src="Redondah_20260915_122945_0000.png" style="width:14px; height:14px;" onerror="this.style.display='none'">
-        <span>Atendiendo en el Carrito</span>
+        <span id="ui-status-text">Atendiendo en el Carrito</span>
       </span>
     </div>
   </header>
 
   <div class="container">
+    <!-- Banner de aviso opcional -->
+    <div id="ui-announcement" class="announcement-banner"></div>
+
     <div class="section-title">
       <img src="Redondah_20260915_123216_0000.png" class="flower-icon" alt="🌸" onerror="this.outerHTML='🌸'">
-      <span>Sabores Disponibles Hoy:</span>
+      <span id="ui-section-title">Sabores Disponibles Hoy:</span>
     </div>
 
     <div class="grid" id="menu-grid">
@@ -338,12 +347,11 @@
 
     <footer>
       <img src="Redondah_20260914_174314_0000.png" alt="!Redonda Artesanal" class="footer-badge-img" onerror="this.style.display='none'">
-      <span>¡Hechas a mano con amor todos los días! 🍩</span>
+      <span id="ui-footer-text">¡Hechas a mano con amor todos los días! 🍩</span>
     </footer>
   </div>
 
   <script>
-    // Configuración Firebase oficial vinculada
     const firebaseConfig = {
       apiKey: "AIzaSyAiUpu5hzBgu0rg7Wj-ny67iv27t1iYH98",
       authDomain: "redonda-donas.firebaseapp.com",
@@ -361,7 +369,39 @@
     let basket = {};
     const WHATSAPP_NUM = "51980988660";
 
-    // Escucha en tiempo real de Firebase
+    // Textos por defecto
+    let menuConfig = {
+      subtitle: "Donas Artesanales & Bebidas",
+      statusText: "Atendiendo en el Carrito",
+      sectionTitle: "Sabores Disponibles Hoy:",
+      announcement: "",
+      footerText: "¡Hechas a mano con amor todos los días! 🍩"
+    };
+
+    // Escuchar configuración de textos en vivo desde Firebase
+    db.ref('settings/menuConfig').on('value', snap => {
+      if (snap.val()) {
+        menuConfig = { ...menuConfig, ...snap.val() };
+        applyMenuTexts();
+      }
+    });
+
+    function applyMenuTexts() {
+      document.getElementById('ui-subtitle').innerText = menuConfig.subtitle || "Donas Artesanales & Bebidas";
+      document.getElementById('ui-status-text').innerText = menuConfig.statusText || "Atendiendo en el Carrito";
+      document.getElementById('ui-section-title').innerText = menuConfig.sectionTitle || "Sabores Disponibles Hoy:";
+      document.getElementById('ui-footer-text').innerText = menuConfig.footerText || "¡Hechas a mano con amor todos los días! 🍩";
+
+      const annEl = document.getElementById('ui-announcement');
+      if (menuConfig.announcement && menuConfig.announcement.trim() !== "") {
+        annEl.innerText = menuConfig.announcement;
+        annEl.style.display = "block";
+      } else {
+        annEl.style.display = "none";
+      }
+    }
+
+    // Escuchar catálogo en tiempo real
     db.ref('catalog').on('value', snapshot => {
       catalog = snapshot.val() || [];
       renderMenu();
@@ -454,18 +494,21 @@
       const keys = Object.keys(basket);
       if (keys.length === 0) { alert("Tu canasta está vacía."); return; }
 
-      let text = "¡Hola !Redonda! 👋 Quisiera separar este pedido:\n\n";
+      // Texto limpio con codificación compatible para evitar caracteres rotos ()
+      let text = "*Hola !Redonda!* 👋 Quisiera separar este pedido:\n\n";
       let total = 0;
       keys.forEach(id => {
         const prod = catalog.find(p => p.id === id);
         const qty = basket[id];
         const sub = prod.price * qty;
         total += sub;
-        text += `• ${qty}x ${prod.name} (S/ ${sub.toFixed(2)})\n`;
+        text += `• *${qty}x* ${prod.name} (S/ ${sub.toFixed(2)})\n`;
       });
-      text += `\n💰 Total a pagar: S/ ${total.toFixed(2)}\n¿Aún tienes disponible para recoger en el carrito?`;
+      text += `\n*Total a pagar: S/ ${total.toFixed(2)}*\n¿Aún tienes disponible para recoger en el carrito?`;
       window.open(`https://wa.me/${WHATSAPP_NUM}?text=${encodeURIComponent(text)}`, '_blank');
     }
+
+    applyMenuTexts();
   </script>
 </body>
 </html>

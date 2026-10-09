@@ -347,7 +347,7 @@
     </div>
     <div id="pack-manage-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
 
-    <!-- NUEVO: PERSONALIZACIÓN DEL MENÚ PÚBLICO DE CLIENTES -->
+    <!-- PERSONALIZACIÓN DEL MENÚ PÚBLICO -->
     <div style="background:#fff; border:1.5px solid var(--border); border-radius:14px; padding:14px; margin-top:20px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
         <h3 style="font-size:15px; color:var(--matcha-dark);">🎨 Personalizar Textos del Menú Público (QR)</h3>
@@ -475,7 +475,7 @@
       <div id="m-liquid-fields" style="display:none;">
         <label>Litros del Termo / Olla (L):</label>
         <input type="number" step="0.1" id="m-liq-liters" placeholder="1.8" oninput="updateModalLiquidPreview()">
-        
+
         <label>Vaso Descartable Indexado del Almacén:</label>
         <select id="m-liq-cup-index" onchange="updateModalLiquidPreview()"></select>
 
@@ -563,7 +563,7 @@
         <span style="cursor:pointer;" onclick="closeModal('modal-github')">✕</span>
       </h3>
       <p style="font-size:12px; color:var(--muted); margin-bottom:8px;">Guarda todas las ventas como un commit en tu repositorio.</p>
-      
+
       <label>Repositorio (ej. Dimart-prog/redonda-pos):</label>
       <input type="text" id="gh-repo" value="Dimart-prog/redonda-pos">
 
@@ -604,11 +604,20 @@
 
     let currentPin = localStorage.getItem('pos_master_pin') || "1234";
 
+    // FUNCIÓN DE FECHA LOCAL (EVITA DESFASES DE HORA UTC)
+    function getLocalDateString() {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
     const DEFAULT_CATALOG = [
       { id: 'p1', name: 'Chocolate Pastelero', type: 'unit', cost: 6.27, price: 7.00, initialBatch: 0, currentStock: 0 },
       { id: 'p2', name: 'Dona Maracuyá', type: 'unit', cost: 1.60, price: 4.00, initialBatch: 0, currentStock: 0 },
       { id: 'p3', name: 'Dona Manjar Blanco', type: 'unit', cost: 1.40, price: 3.50, initialBatch: 0, currentStock: 0 },
-      { 
+      {
         id: 'p4', name: 'Chocolate Francés', type: 'liquid',
         totalLiters: 1.8, cupMl: 180, batchCost: 5.00,
         cupKey: 'vaso_9oz',
@@ -777,7 +786,6 @@
       document.getElementById('new-pin-input').value = '';
     }
 
-    // --- PERSONALIZACIÓN MENÚ PÚBLICO ---
     function populateMenuConfigInputs() {
       if (!document.getElementById('cfg-subtitle')) return;
       document.getElementById('cfg-subtitle').value = menuConfig.subtitle || '';
@@ -1095,10 +1103,11 @@
       if (selectedPayMethod === 'Dividido') syncSplitValues();
     }
 
+    // REGISTRO DE VENTA CORREGIDO (ZONA HORARIA EXACTA)
     function finishOrder() {
       const now = new Date();
-      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const dateKey = now.toISOString().split('T')[0];
+      const dateKey = getLocalDateString();
+      const timeStr = now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: true });
 
       let items = [];
       let totalSale = 0;
@@ -1188,7 +1197,7 @@
       currentCart = {};
       currentOrderPacks = {};
       saveState();
-      
+
       const offlineMsg = !navigator.onLine ? " (Guardado en celular ⚡)" : "";
       alert(`✅ Venta registrada: S/ ${totalSale.toFixed(2)} (${payData.detail})${offlineMsg}`);
     }
@@ -1237,7 +1246,7 @@
     // --- ARQUEO ---
     function renderReports() {
       const container = document.getElementById('audit-sales-container');
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalDateString();
       const todaySales = sales.filter(s => s.date === today);
 
       let total = 0, profit = 0, cash = 0, digital = 0;
@@ -1264,8 +1273,8 @@
           }
 
           const desc = s.items.map(i => `${i.qty}x ${i.name}`).join(', ');
-          const packList = s.packs 
-            ? Object.keys(s.packs).filter(k => s.packs[k] > 0).map(k => `${s.packs[k]} ${packInventory[k] ? packInventory[k].name : k}`).join(', ') 
+          const packList = s.packs
+            ? Object.keys(s.packs).filter(k => s.packs[k] > 0).map(k => `${s.packs[k]} ${packInventory[k] ? packInventory[k].name : k}`).join(', ')
             : 'Ninguno';
 
           return `
@@ -1332,7 +1341,7 @@
     }
 
     function confirmFinalDayClose() {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalDateString();
       const totalLost = tempMermasToClose.reduce((acc, m) => acc + m.lostMoney, 0);
 
       closedDays.unshift({
@@ -1426,7 +1435,7 @@
               <span style="color:var(--danger);">Pérdida Mermas: S/ ${cd.lostMoney.toFixed(2)}</span>
             </div>
             <div style="color:#64748b;">
-              ${cd.mermas && cd.mermas.length > 0 ? cd.mermas.map(m => `${m.leftQty}x ${m.name}`).join(' | ') : 'Cero mermas (Todo vendido)'}
+              ${cd.mermas && cd.mermas.length > 0 ? cd.mermas.map(m => `${m.leftQty}x${m.name}`).join(' | ') : 'Cero mermas (Todo vendido)'}
             </div>
           </div>
         `).join('');
@@ -1442,7 +1451,7 @@
       let tCobrado = 0, tGanancia = 0;
       daySales.forEach(s => { tCobrado += s.total; tGanancia += s.profit; });
 
-      let mermasHtml = cd.mermas && cd.mermas.length > 0 
+      let mermasHtml = cd.mermas && cd.mermas.length > 0
         ? cd.mermas.map(m => `• <strong>${m.leftQty}x ${m.name}</strong> (Costo perdido: S/ ${m.lostMoney.toFixed(2)})`).join('<br>')
         : '• ¡No hubo mermas! Todo el stock se vendió.';
 
@@ -1476,7 +1485,7 @@
     }
 
     function exportDataCSV(exportAll) {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalDateString();
       const dataToExport = exportAll ? sales : sales.filter(s => s.date === today);
 
       if (dataToExport.length === 0) { alert("No hay datos para exportar."); return; }
